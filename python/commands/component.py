@@ -741,37 +741,43 @@ class ComponentCommands:
             pattern = params.get("pattern", "grid")  # grid or circular
             count = params.get("count")
             reference_prefix = params.get("referencePrefix", "U")
+            start_reference = params.get("startReference")
             value = params.get("value")
-            
-            if not component_id or not count:
+            footprint = params.get("footprint")
+
+            if not component_id:
                 return {
                     "success": False,
                     "message": "Missing parameters",
-                    "errorDetails": "componentId and count are required"
+                    "errorDetails": "componentId is required"
                 }
-                
+
             if pattern == "grid":
                 start_position = params.get("startPosition")
                 rows = params.get("rows")
                 columns = params.get("columns")
-                spacing_x = params.get("spacingX")
-                spacing_y = params.get("spacingY")
+                spacing_x = params.get("spacingX") or params.get("columnSpacing")
+                spacing_y = params.get("spacingY") or params.get("rowSpacing")
                 rotation = params.get("rotation", 0)
                 layer = params.get("layer", "F.Cu")
-                
+
+                # Auto-calculate count from rows*columns if not provided
+                if not count and rows and columns:
+                    count = rows * columns
+
                 if not start_position or not rows or not columns or not spacing_x or not spacing_y:
                     return {
                         "success": False,
                         "message": "Missing grid parameters",
-                        "errorDetails": "For grid pattern, startPosition, rows, columns, spacingX, and spacingY are required"
+                        "errorDetails": "For grid pattern, startPosition, rows, columns, and spacing (rowSpacing/columnSpacing or spacingX/spacingY) are required"
                     }
-                    
-                if rows * columns != count:
-                    return {
-                        "success": False,
-                        "message": "Invalid grid parameters",
-                        "errorDetails": "rows * columns must equal count"
-                    }
+
+                # Extract reference prefix from startReference if provided
+                if start_reference and not reference_prefix:
+                    import re
+                    match = re.match(r'^([A-Za-z]+)', start_reference)
+                    if match:
+                        reference_prefix = match.group(1)
                     
                 placed_components = self._place_grid_array(
                     component_id,

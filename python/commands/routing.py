@@ -1038,15 +1038,50 @@ class RoutingCommands:
                     "errorDetails": "name parameter is required",
                 }
 
-            # Get net classes
-            net_classes = self.board.GetNetClasses()
+            # Get net classes - KiCad 10 returns a dict-like netclasses_map
+            ds = self.board.GetDesignSettings()
 
-            # Create new net class if it doesn't exist
-            if not net_classes.Find(name):
-                netclass = pcbnew.NETCLASS(name)
-                net_classes.Add(netclass)
-            else:
-                netclass = net_classes.Find(name)
+            # Try to find existing netclass or create new one
+            netclass = None
+            try:
+                # KiCad 10: GetNetClasses() returns a map, use dict-like access
+                net_classes = ds.m_NetSettings.m_NetClasses
+                if name in net_classes:
+                    netclass = net_classes[name]
+                else:
+                    netclass = pcbnew.NETCLASS(name)
+                    net_classes[name] = netclass
+            except (AttributeError, TypeError):
+                # Fallback for older KiCad versions
+                try:
+                    net_classes = self.board.GetNetClasses()
+                    if hasattr(net_classes, 'Find'):
+                        existing = net_classes.Find(name)
+                        if existing:
+                            netclass = existing
+                        else:
+                            netclass = pcbnew.NETCLASS(name)
+                            net_classes.Add(netclass)
+                    else:
+                        # Dict-like access
+                        if name in net_classes:
+                            netclass = net_classes[name]
+                        else:
+                            netclass = pcbnew.NETCLASS(name)
+                            net_classes[name] = netclass
+                except Exception as inner_e:
+                    return {
+                        "success": False,
+                        "message": "Failed to create net class",
+                        "errorDetails": f"Could not access net classes: {str(inner_e)}",
+                    }
+
+            if not netclass:
+                return {
+                    "success": False,
+                    "message": "Failed to create net class",
+                    "errorDetails": "Could not create or find net class object",
+                }
 
             # Set properties
             scale = 1000000  # mm to nm

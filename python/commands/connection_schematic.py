@@ -582,22 +582,76 @@ class ConnectionManager:
                     }
                     netlist["components"].append(component_info)
 
-            # Gather all nets from labels
+            # Gather all nets from labels AND global labels
+            net_names = set()
             if hasattr(schematic, "label"):
-                net_names = set()
                 for label in schematic.label:
                     if hasattr(label, "value"):
                         net_names.add(label.value)
 
-                # For each net, get connections
-                for net_name in net_names:
-                    connections = ConnectionManager.get_net_connections(
-                        schematic, net_name, schematic_path
+            # Also include global labels
+            if hasattr(schematic, "global_label"):
+                for label in schematic.global_label:
+                    if hasattr(label, "value"):
+                        net_names.add(label.value)
+
+            # Also include hierarchical labels
+            if hasattr(schematic, "hierarchical_label"):
+                for label in schematic.hierarchical_label:
+                    if hasattr(label, "value"):
+                        net_names.add(label.value)
+
+            # Also scan for power symbols (VCC, GND, +3V3, etc.)
+            # Power symbols create implicit nets with the same name as the symbol value
+            if hasattr(schematic, "symbol"):
+                for symbol in schematic.symbol:
+                    try:
+                        # Check if this is a power symbol by looking at the lib_id
+                        lib_id = ""
+                        if hasattr(symbol, "lib_id"):
+                            lib_id = str(symbol.lib_id)
+                        elif hasattr(symbol, "lib_name"):
+                            lib_id = str(symbol.lib_name)
+
+                        # Power symbols typically have lib_id containing "power:"
+                        # or have the power flag set in the lib_symbol definition
+                        is_power = "power:" in lib_id.lower()
+
+                        # Also check by common power symbol names
+                        if not is_power and hasattr(symbol, "property"):
+                            ref = ""
+                            val = ""
+                            if hasattr(symbol.property, "Reference"):
+                                ref = symbol.property.Reference.value
+                            if hasattr(symbol.property, "Value"):
+                                val = symbol.property.Value.value
+                            # Power symbols often have reference starting with #
+                            if ref.startswith("#PWR") or ref.startswith("#FLG"):
+                                is_power = True
+                            # Common power net names
+                            power_names = {"VCC", "VDD", "GND", "GNDA", "GNDREF",
+                                         "+3V3", "+3.3V", "+5V", "+12V", "-12V",
+                                         "VBAT", "VBUS", "V_BATT"}
+                            if val in power_names:
+                                is_power = True
+
+                        if is_power and hasattr(symbol, "property"):
+                            if hasattr(symbol.property, "Value"):
+                                power_net = symbol.property.Value.value
+                                if power_net:
+                                    net_names.add(power_net)
+                    except Exception:
+                        continue
+
+            # For each net, get connections
+            for net_name in sorted(net_names):
+                connections = ConnectionManager.get_net_connections(
+                    schematic, net_name, schematic_path
+                )
+                if connections:
+                    netlist["nets"].append(
+                        {"name": net_name, "connections": connections}
                     )
-                    if connections:
-                        netlist["nets"].append(
-                            {"name": net_name, "connections": connections}
-                        )
 
             logger.info(
                 f"Generated netlist with {len(netlist['nets'])} nets and {len(netlist['components'])} components"

@@ -2554,6 +2554,76 @@ class KiCADInterface:
                     if ref and pin and pin != "unknown":
                         pad_net_map[(ref, pin)] = net_name
 
+            # Build a map of existing footprints on the board
+            existing_refs = set()
+            for fp in board.GetFootprints():
+                existing_refs.add(fp.GetReference())
+
+            # Create footprints for components that don't exist on the board yet
+            created_fps = 0
+            failed_fps = []
+            components = netlist.get("components", [])
+            for comp in components:
+                ref = comp.get("reference", "")
+                footprint_str = comp.get("footprint", "")
+                value = comp.get("value", "")
+
+                if not ref or not footprint_str or ref in existing_refs:
+                    continue
+
+                # Parse footprint string "Library:Footprint"
+                try:
+                    if ":" in footprint_str:
+                        lib_name, fp_name = footprint_str.split(":", 1)
+                    else:
+                        # Try to find it by name alone
+                        fp_name = footprint_str
+                        lib_name = None
+
+                    # Try loading the footprint from the library
+                    module = None
+                    if lib_name:
+                        # Try to find the library path from the footprint library table
+                        try:
+                            fp_lib_table = pcbnew.GetFootprintLibraryTable()
+                            if fp_lib_table:
+                                lib_path = fp_lib_table.FindRow(lib_name)
+                                if lib_path:
+                                    uri = lib_path.GetFullURI()
+                                    module = pcbnew.FootprintLoad(uri, fp_name)
+                        except Exception:
+                            pass
+
+                        # Fallback: try pcbnew.LoadFootprint
+                        if not module:
+                            try:
+                                module = pcbnew.FootprintLoad(
+                                    pcbnew.FOOTPRINT_LIB_TABLE.GlobalPathForLibrary(lib_name),
+                                    fp_name,
+                                )
+                            except Exception:
+                                pass
+
+                    if module:
+                        # Set reference and value
+                        module.SetReference(ref)
+                        if value:
+                            module.SetValue(value)
+                        # Place at origin initially - user can reposition later
+                        # Spread components slightly to avoid overlap
+                        offset_x = (created_fps % 10) * 15000000  # 15mm apart
+                        offset_y = (created_fps // 10) * 15000000
+                        module.SetPosition(
+                            pcbnew.VECTOR2I(10000000 + offset_x, 10000000 + offset_y)
+                        )
+                        board.Add(module)
+                        existing_refs.add(ref)
+                        created_fps += 1
+                    else:
+                        failed_fps.append(f"{ref} ({footprint_str})")
+                except Exception as fp_err:
+                    failed_fps.append(f"{ref} ({footprint_str}): {str(fp_err)}")
+
             # Add all nets to board
             netinfo = board.GetNetInfo()
             nets_by_name = netinfo.NetsByName()
@@ -2592,11 +2662,13 @@ class KiCADInterface:
                 self._update_command_handlers()
 
             logger.info(
-                f"sync_schematic_to_board: {len(added_nets)} nets added, {assigned_pads} pads assigned"
+                f"sync_schematic_to_board: {created_fps} footprints created, {len(added_nets)} nets added, {assigned_pads} pads assigned"
             )
             return {
                 "success": True,
-                "message": f"PCB nets synced from schematic: {len(added_nets)} nets added, {assigned_pads} pads assigned",
+                "message": f"PCB synced from schematic: {created_fps} footprints created, {len(added_nets)} nets added, {assigned_pads} pads assigned",
+                "footprints_created": created_fps,
+                "footprints_failed": failed_fps[:20],
                 "nets_added": added_nets,
                 "nets_total": len(net_names),
                 "pads_assigned": assigned_pads,
@@ -4035,9 +4107,15 @@ def main():
         # Process commands from stdin
         for line in sys.stdin:
             try:
+                # Skip empty lines (e.g. from TypeScript MCP server on startup)
+                stripped = line.strip()
+                if not stripped:
+                    logger.debug("Skipping empty line")
+                    continue
+
                 # Parse command
-                logger.debug(f"Received input: {line.strip()}")
-                command_data = json.loads(line)
+                logger.debug(f"Received input: {stripped}")
+                command_data = json.loads(stripped)
 
                 # Check if this is JSON-RPC 2.0 format
                 if "jsonrpc" in command_data and command_data["jsonrpc"] == "2.0":

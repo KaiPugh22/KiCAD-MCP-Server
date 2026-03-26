@@ -6,9 +6,24 @@ import os
 import pcbnew
 import logging
 from typing import Dict, Any, Optional, List, Tuple
-from PIL import Image
 import io
 import base64
+
+# Lazy import PIL - KiCad's bundled Python may have architecture-mismatched PIL
+# (e.g. arm64 .so with x86_64 Python under Rosetta)
+Image = None
+def _get_pil_image():
+    global Image
+    if Image is None:
+        try:
+            from PIL import Image as _Image
+            Image = _Image
+        except (ImportError, OSError) as e:
+            raise ImportError(
+                f"PIL/Pillow is required for board view operations but failed to load: {e}. "
+                f"Try: pip install --force-reinstall Pillow"
+            )
+    return Image
 
 logger = logging.getLogger('kicad_interface')
 
@@ -142,7 +157,7 @@ class BoardViewCommands:
                 
                 if format == "jpg":
                     # Convert PNG to JPG
-                    img = Image.open(io.BytesIO(png_data))
+                    img = _get_pil_image().open(io.BytesIO(png_data))
                     jpg_buffer = io.BytesIO()
                     img.convert('RGB').save(jpg_buffer, format='JPEG')
                     jpg_data = jpg_buffer.getvalue()
