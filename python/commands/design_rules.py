@@ -589,7 +589,7 @@ class DesignRuleCommands:
                 ds.m_ViasMinSize = int(min_via_dia * scale)
                 changes.append(f"minViaDiameter={min_via_dia}mm")
             if min_via_drill is not None:
-                ds.m_ViasMinDrill = int(min_via_drill * scale)
+                ds.m_MinThroughDrill = int(min_via_drill * scale)
                 changes.append(f"minViaDrill={min_via_drill}mm")
 
             if not changes:
