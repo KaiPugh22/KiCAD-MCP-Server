@@ -11,6 +11,15 @@ from typing import Dict, Any, Optional, List, Tuple
 logger = logging.getLogger("kicad_interface")
 
 
+def _via_get_width(via):
+    """Get via width compatible with both KiCad 9 and 10.
+    KiCad 10 requires a layer argument; KiCad 9 does not."""
+    try:
+        return via.GetWidth(pcbnew.F_Cu)
+    except TypeError:
+        return via.GetWidth()
+
+
 class RoutingCommands:
     """Handles routing-related KiCAD operations"""
 
@@ -399,7 +408,7 @@ class RoutingCommands:
                         "y": position["y"],
                         "unit": position["unit"],
                     },
-                    "size": via.GetWidth() / 1000000,
+                    "size": _via_get_width(via) / 1000000,
                     "drill": via.GetDrill() / 1000000,
                     "from_layer": from_layer,
                     "to_layer": to_layer,
@@ -650,7 +659,7 @@ class RoutingCommands:
                                 },
                                 "net": track.GetNetname(),
                                 "netCode": track.GetNetCode(),
-                                "diameter": track.GetWidth() / scale,
+                                "diameter": _via_get_width(track) / scale,
                                 "drill": track.GetDrillValue() / scale,
                             }
                         )
@@ -983,7 +992,7 @@ class RoutingCommands:
                 # Create new via
                 new_via = pcbnew.PCB_VIA(self.board)
                 new_via.SetPosition(pcbnew.VECTOR2I(pos.x + offset_x, pos.y + offset_y))
-                new_via.SetWidth(via.GetWidth())
+                new_via.SetWidth(_via_get_width(via))
                 new_via.SetDrill(via.GetDrillValue())
                 new_via.SetViaType(via.GetViaType())
 
@@ -1039,32 +1048,39 @@ class RoutingCommands:
                     "errorDetails": "name parameter is required",
                 }
 
-            # Get net classes - KiCad 10 returns a dict-like netclasses_map
+            # Get net classes - API differs between KiCad versions
             ds = self.board.GetDesignSettings()
 
             # Try to find existing netclass or create new one
             netclass = None
             try:
-                # KiCad 10: GetNetClasses() returns a map, use dict-like access
-                net_classes = ds.m_NetSettings.m_NetClasses
+                # KiCad 10+: Use m_NetSettings API
+                net_settings = ds.m_NetSettings
+                net_classes = net_settings.GetNetclasses()
                 if name in net_classes:
                     netclass = net_classes[name]
                 else:
                     netclass = pcbnew.NETCLASS(name)
-                    net_classes[name] = netclass
+                    net_settings.SetNetclass(name, netclass)
             except (AttributeError, TypeError):
-                # Fallback for older KiCad versions
+                # Fallback for KiCad 9 and older
                 try:
-                    net_classes = self.board.GetNetClasses()
-                    if hasattr(net_classes, 'Find'):
-                        existing = net_classes.Find(name)
-                        if existing:
-                            netclass = existing
+                    if hasattr(ds, 'GetNetClasses'):
+                        net_classes = ds.GetNetClasses()
+                        if hasattr(net_classes, 'Find'):
+                            existing = net_classes.Find(name)
+                            if existing:
+                                netclass = existing
+                            else:
+                                netclass = pcbnew.NETCLASS(name)
+                                net_classes.Add(netclass)
+                        elif name in net_classes:
+                            netclass = net_classes[name]
                         else:
                             netclass = pcbnew.NETCLASS(name)
-                            net_classes.Add(netclass)
-                    else:
-                        # Dict-like access
+                            net_classes[name] = netclass
+                    elif hasattr(self.board, 'GetNetClasses'):
+                        net_classes = self.board.GetNetClasses()
                         if name in net_classes:
                             netclass = net_classes[name]
                         else:
@@ -1095,9 +1111,15 @@ class RoutingCommands:
             if via_drill is not None:
                 netclass.SetViaDrill(int(via_drill * scale))
             if uvia_diameter is not None:
-                netclass.SetMicroViaDiameter(int(uvia_diameter * scale))
+                if hasattr(netclass, 'SetuViaDiameter'):
+                    netclass.SetuViaDiameter(int(uvia_diameter * scale))
+                elif hasattr(netclass, 'SetMicroViaDiameter'):
+                    netclass.SetMicroViaDiameter(int(uvia_diameter * scale))
             if uvia_drill is not None:
-                netclass.SetMicroViaDrill(int(uvia_drill * scale))
+                if hasattr(netclass, 'SetuViaDrill'):
+                    netclass.SetuViaDrill(int(uvia_drill * scale))
+                elif hasattr(netclass, 'SetMicroViaDrill'):
+                    netclass.SetMicroViaDrill(int(uvia_drill * scale))
             if diff_pair_width is not None:
                 netclass.SetDiffPairWidth(int(diff_pair_width * scale))
             if diff_pair_gap is not None:
@@ -1109,7 +1131,10 @@ class RoutingCommands:
             for net_name in nets:
                 if net_name in nets_map:
                     net = nets_map[net_name]
-                    net.SetClass(netclass)
+                    if hasattr(net, 'SetNetClass'):
+                        net.SetNetClass(netclass)
+                    elif hasattr(net, 'SetClass'):
+                        net.SetClass(netclass)
 
             return {
                 "success": True,
@@ -1120,8 +1145,8 @@ class RoutingCommands:
                     "trackWidth": netclass.GetTrackWidth() / scale,
                     "viaDiameter": netclass.GetViaDiameter() / scale,
                     "viaDrill": netclass.GetViaDrill() / scale,
-                    "uviaDiameter": netclass.GetMicroViaDiameter() / scale,
-                    "uviaDrill": netclass.GetMicroViaDrill() / scale,
+                    "uviaDiameter": (netclass.GetuViaDiameter() if hasattr(netclass, 'GetuViaDiameter') else netclass.GetMicroViaDiameter()) / scale,
+                    "uviaDrill": (netclass.GetuViaDrill() if hasattr(netclass, 'GetuViaDrill') else netclass.GetMicroViaDrill()) / scale,
                     "diffPairWidth": netclass.GetDiffPairWidth() / scale,
                     "diffPairGap": netclass.GetDiffPairGap() / scale,
                     "nets": nets,

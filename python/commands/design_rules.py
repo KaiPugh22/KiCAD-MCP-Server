@@ -511,20 +511,36 @@ class DesignRuleCommands:
 
             net = nets_map[net_name]
 
-            # Find the net class
-            net_classes = self.board.GetDesignSettings().GetNetClasses()
+            # Find the net class - API differs between KiCad versions
+            ds = self.board.GetDesignSettings()
             netclass = None
             try:
-                netclass = net_classes[net_class_name]
-            except (KeyError, TypeError):
+                # KiCad 10+: m_NetSettings.GetNetclasses()
+                net_classes = ds.m_NetSettings.GetNetclasses()
+                if net_class_name in net_classes:
+                    netclass = net_classes[net_class_name]
+            except (AttributeError, TypeError):
                 pass
-            if netclass is None and hasattr(net_classes, 'Find'):
-                netclass = net_classes.Find(net_class_name)
+
+            if netclass is None:
+                try:
+                    # KiCad 9: GetNetClasses()
+                    if hasattr(ds, 'GetNetClasses'):
+                        net_classes = ds.GetNetClasses()
+                        if hasattr(net_classes, 'Find'):
+                            netclass = net_classes.Find(net_class_name)
+                        elif net_class_name in net_classes:
+                            netclass = net_classes[net_class_name]
+                except (AttributeError, TypeError):
+                    pass
 
             if not netclass:
                 return {"success": False, "message": f"Net class '{net_class_name}' not found"}
 
-            net.SetClass(netclass)
+            if hasattr(net, 'SetNetClass'):
+                net.SetNetClass(netclass)
+            elif hasattr(net, 'SetClass'):
+                net.SetClass(netclass)
 
             return {"success": True, "message": f"Assigned net '{net_name}' to class '{net_class_name}'",
                     "net": net_name, "netClass": net_class_name}
