@@ -41,7 +41,7 @@ class RoutingCommands:
             # Create new net
             netinfo = self.board.GetNetInfo()
             nets_map = netinfo.NetsByName()
-            if nets_map.has_key(name):
+            if name in nets_map:
                 net = nets_map[name]
             else:
                 net = pcbnew.NETINFO_ITEM(self.board, name)
@@ -275,7 +275,7 @@ class RoutingCommands:
             if net:
                 netinfo = self.board.GetNetInfo()
                 nets_map = netinfo.NetsByName()
-                if nets_map.has_key(net):
+                if net in nets_map:
                     net_obj = nets_map[net]
                     track.SetNet(net_obj)
 
@@ -383,7 +383,7 @@ class RoutingCommands:
             if net:
                 netinfo = self.board.GetNetInfo()
                 nets_map = netinfo.NetsByName()
-                if nets_map.has_key(net):
+                if net in nets_map:
                     net_obj = nets_map[net]
                     via.SetNet(net_obj)
 
@@ -399,7 +399,7 @@ class RoutingCommands:
                         "y": position["y"],
                         "unit": position["unit"],
                     },
-                    "size": via.GetWidth(pcbnew.F_Cu) / 1000000,
+                    "size": via.GetWidth() / 1000000,
                     "drill": via.GetDrill() / 1000000,
                     "from_layer": from_layer,
                     "to_layer": to_layer,
@@ -786,7 +786,8 @@ class RoutingCommands:
 
             if new_net:
                 netinfo = self.board.GetNetInfo()
-                net = netinfo.GetNetItem(new_net)
+                nets_map = netinfo.NetsByName()
+                net = nets_map[new_net] if new_net in nets_map else None
                 if not net:
                     return {
                         "success": False,
@@ -982,7 +983,7 @@ class RoutingCommands:
                 # Create new via
                 new_via = pcbnew.PCB_VIA(self.board)
                 new_via.SetPosition(pcbnew.VECTOR2I(pos.x + offset_x, pos.y + offset_y))
-                new_via.SetWidth(via.GetWidth(pcbnew.F_Cu))
+                new_via.SetWidth(via.GetWidth())
                 new_via.SetDrill(via.GetDrillValue())
                 new_via.SetViaType(via.GetViaType())
 
@@ -1106,7 +1107,7 @@ class RoutingCommands:
             netinfo = self.board.GetNetInfo()
             nets_map = netinfo.NetsByName()
             for net_name in nets:
-                if nets_map.has_key(net_name):
+                if net_name in nets_map:
                     net = nets_map[net_name]
                     net.SetClass(netclass)
 
@@ -1206,7 +1207,7 @@ class RoutingCommands:
             if net:
                 netinfo = self.board.GetNetInfo()
                 nets_map = netinfo.NetsByName()
-                if nets_map.has_key(net):
+                if net in nets_map:
                     net_obj = nets_map[net]
                     zone.SetNet(net_obj)
 
@@ -1305,8 +1306,8 @@ class RoutingCommands:
             netinfo = self.board.GetNetInfo()
             nets_map = netinfo.NetsByName()
 
-            net_pos_obj = nets_map[net_pos] if nets_map.has_key(net_pos) else None
-            net_neg_obj = nets_map[net_neg] if nets_map.has_key(net_neg) else None
+            net_pos_obj = nets_map[net_pos] if net_pos in nets_map else None
+            net_neg_obj = nets_map[net_neg] if net_neg in nets_map else None
 
             if not net_pos_obj or not net_neg_obj:
                 return {

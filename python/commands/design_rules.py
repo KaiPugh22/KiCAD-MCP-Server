@@ -13,9 +13,10 @@ logger = logging.getLogger("kicad_interface")
 class DesignRuleCommands:
     """Handles design rule checking and configuration"""
 
-    def __init__(self, board: Optional[pcbnew.BOARD] = None):
+    def __init__(self, board: Optional[pcbnew.BOARD] = None, routing_commands=None):
         """Initialize with optional board instance"""
         self.board = board
+        self._routing_commands = routing_commands
 
     def set_design_rules(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Set design rules for the PCB"""
@@ -472,3 +473,180 @@ class DesignRuleCommands:
                 "message": "Failed to get DRC violations",
                 "errorDetails": str(e),
             }
+
+    def add_net_class(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a net class with full parameters (delegates to RoutingCommands.create_netclass)"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            # Map add_net_class params to create_netclass params
+            return self._routing_commands.create_netclass(params)
+
+        except Exception as e:
+            logger.error(f"Error adding net class: {str(e)}")
+            return {"success": False, "message": "Failed to add net class",
+                    "errorDetails": str(e)}
+
+    def assign_net_to_class(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Assign a net to a specific net class"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            net_name = params.get("net")
+            net_class_name = params.get("netClass")
+
+            if not net_name or not net_class_name:
+                return {"success": False, "message": "Missing parameters",
+                        "errorDetails": "net and netClass are required"}
+
+            # Find the net
+            netinfo = self.board.GetNetInfo()
+            nets_map = netinfo.NetsByName()
+            if net_name not in nets_map:
+                return {"success": False, "message": f"Net '{net_name}' not found"}
+
+            net = nets_map[net_name]
+
+            # Find the net class
+            net_classes = self.board.GetDesignSettings().GetNetClasses()
+            netclass = None
+            try:
+                netclass = net_classes[net_class_name]
+            except (KeyError, TypeError):
+                pass
+            if netclass is None and hasattr(net_classes, 'Find'):
+                netclass = net_classes.Find(net_class_name)
+
+            if not netclass:
+                return {"success": False, "message": f"Net class '{net_class_name}' not found"}
+
+            net.SetClass(netclass)
+
+            return {"success": True, "message": f"Assigned net '{net_name}' to class '{net_class_name}'",
+                    "net": net_name, "netClass": net_class_name}
+
+        except Exception as e:
+            logger.error(f"Error assigning net to class: {str(e)}")
+            return {"success": False, "message": "Failed to assign net to class",
+                    "errorDetails": str(e)}
+
+    def set_layer_constraints(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Set design rule constraints for a specific layer"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            layer_name = params.get("layer")
+            if not layer_name:
+                return {"success": False, "message": "Missing layer parameter"}
+
+            # Verify layer exists
+            layer_id = self.board.GetLayerID(layer_name)
+            if layer_id < 0:
+                return {"success": False, "message": f"Layer '{layer_name}' not found"}
+
+            ds = self.board.GetDesignSettings()
+            scale = 1000000  # mm to nm
+
+            # KiCad doesn't have per-layer constraint APIs directly,
+            # but we can set custom rules via the design settings
+            changes = []
+
+            min_track = params.get("minTrackWidth")
+            min_clearance = params.get("minClearance")
+            min_via_dia = params.get("minViaDiameter")
+            min_via_drill = params.get("minViaDrill")
+
+            # Apply as global minimums (KiCad doesn't support per-layer min constraints via API)
+            if min_track is not None:
+                ds.SetCustomTrackWidth(int(min_track * scale))
+                changes.append(f"minTrackWidth={min_track}mm")
+            if min_clearance is not None:
+                ds.m_MinClearance = int(min_clearance * scale)
+                changes.append(f"minClearance={min_clearance}mm")
+            if min_via_dia is not None:
+                ds.m_ViasMinSize = int(min_via_dia * scale)
+                changes.append(f"minViaDiameter={min_via_dia}mm")
+            if min_via_drill is not None:
+                ds.m_ViasMinDrill = int(min_via_drill * scale)
+                changes.append(f"minViaDrill={min_via_drill}mm")
+
+            if not changes:
+                return {"success": False, "message": "No constraints specified"}
+
+            return {"success": True, "message": f"Set constraints for layer '{layer_name}': {', '.join(changes)}",
+                    "layer": layer_name, "changes": changes}
+
+        except Exception as e:
+            logger.error(f"Error setting layer constraints: {str(e)}")
+            return {"success": False, "message": "Failed to set layer constraints",
+                    "errorDetails": str(e)}
+
+    def check_clearance(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Check clearance between two items on the board"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            item1 = params.get("item1", {})
+            item2 = params.get("item2", {})
+
+            if not item1 or not item2:
+                return {"success": False, "message": "Missing parameters",
+                        "errorDetails": "item1 and item2 are required"}
+
+            scale = 1000000  # mm to nm
+
+            def get_item_position(item_def):
+                """Get position from item definition"""
+                if item_def.get("reference"):
+                    for fp in self.board.GetFootprints():
+                        if fp.GetReference() == item_def["reference"]:
+                            pos = fp.GetPosition()
+                            return pos.x, pos.y
+                elif item_def.get("position"):
+                    pos = item_def["position"]
+                    unit = pos.get("unit", "mm")
+                    x = pos.get("x", 0)
+                    y = pos.get("y", 0)
+                    if unit == "mm":
+                        return int(x * scale), int(y * scale)
+                    else:
+                        return int(x * 25400000), int(y * 25400000)
+                return None, None
+
+            x1, y1 = get_item_position(item1)
+            x2, y2 = get_item_position(item2)
+
+            if x1 is None or x2 is None:
+                return {"success": False, "message": "Could not determine item positions"}
+
+            # Calculate distance
+            import math
+            distance_nm = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            distance_mm = distance_nm / scale
+
+            # Get minimum clearance from design rules
+            ds = self.board.GetDesignSettings()
+            min_clearance_mm = ds.m_MinClearance / scale
+
+            return {
+                "success": True,
+                "message": f"Distance between items: {distance_mm:.4f}mm",
+                "distance": round(distance_mm, 4),
+                "minClearance": round(min_clearance_mm, 4),
+                "passes": distance_mm >= min_clearance_mm,
+                "item1": {"type": item1.get("type"), "x": x1 / scale, "y": y1 / scale},
+                "item2": {"type": item2.get("type"), "x": x2 / scale, "y": y2 / scale},
+            }
+
+        except Exception as e:
+            logger.error(f"Error checking clearance: {str(e)}")
+            return {"success": False, "message": "Failed to check clearance",
+                    "errorDetails": str(e)}

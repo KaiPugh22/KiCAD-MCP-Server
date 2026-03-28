@@ -55,13 +55,22 @@ class BoardViewCommands:
 
             # Get layer information
             layers = []
-            for layer_id in range(pcbnew.PCB_LAYER_ID_COUNT):
-                if self.board.IsLayerEnabled(layer_id):
-                    layers.append({
-                        "name": self.board.GetLayerName(layer_id),
-                        "type": self._get_layer_type_name(self.board.GetLayerType(layer_id)),
-                        "id": layer_id
-                    })
+            layer_count = getattr(pcbnew, 'PCB_LAYER_ID_COUNT', 128)
+            for layer_id in range(layer_count):
+                try:
+                    if self.board.IsLayerEnabled(layer_id):
+                        layer_type = "unknown"
+                        try:
+                            layer_type = self._get_layer_type_name(self.board.GetLayerType(layer_id))
+                        except Exception:
+                            pass
+                        layers.append({
+                            "name": self.board.GetLayerName(layer_id),
+                            "type": layer_type,
+                            "id": layer_id
+                        })
+                except Exception:
+                    continue
 
             return {
                 "success": True,
@@ -183,13 +192,14 @@ class BoardViewCommands:
     
     def _get_layer_type_name(self, type_id: int) -> str:
         """Convert KiCAD layer type constant to name"""
-        type_map = {
-            pcbnew.LT_SIGNAL: "signal",
-            pcbnew.LT_POWER: "power",
-            pcbnew.LT_MIXED: "mixed",
-            pcbnew.LT_JUMPER: "jumper"
-        }
-        # Note: LT_USER was removed in KiCAD 9.0
+        type_map = {}
+        # Build map safely - constants may not exist in all KiCad versions
+        for attr, name in [("LT_SIGNAL", "signal"), ("LT_POWER", "power"),
+                           ("LT_MIXED", "mixed"), ("LT_JUMPER", "jumper"),
+                           ("LT_USER", "user"), ("LT_UNDEFINED", "undefined")]:
+            val = getattr(pcbnew, attr, None)
+            if val is not None:
+                type_map[val] = name
         return type_map.get(type_id, "unknown")
 
     def get_board_extents(self, params: Dict[str, Any]) -> Dict[str, Any]:

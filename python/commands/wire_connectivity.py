@@ -255,7 +255,7 @@ def get_wire_connections(
         label_to_points=label_to_points,
     )
     if visited is None:
-        return None
+        return {"pins": [], "wires": [], "labels": []}
 
     wires_out = [
         {

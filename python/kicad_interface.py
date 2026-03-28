@@ -272,7 +272,7 @@ class KiCADInterface:
         self.component_commands = ComponentCommands(self.board, self.footprint_library)
         self.routing_commands = RoutingCommands(self.board)
         self.freerouting_commands = FreeroutingCommands(self.board)
-        self.design_rule_commands = DesignRuleCommands(self.board)
+        self.design_rule_commands = DesignRuleCommands(self.board, self.routing_commands)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -325,6 +325,9 @@ class KiCADInterface:
             "place_component_array": self.component_commands.place_component_array,
             "align_components": self.component_commands.align_components,
             "duplicate_component": self.component_commands.duplicate_component,
+            "add_component_annotation": self.component_commands.add_component_annotation,
+            "group_components": self.component_commands.group_components,
+            "replace_component": self.component_commands.replace_component,
             # Routing commands
             "add_net": self.routing_commands.add_net,
             "route_trace": self.routing_commands.route_trace,
@@ -337,18 +340,26 @@ class KiCADInterface:
             "create_netclass": self.routing_commands.create_netclass,
             "add_copper_pour": self.routing_commands.add_copper_pour,
             "route_differential_pair": self.routing_commands.route_differential_pair,
+            "add_zone": self.routing_commands.add_copper_pour,  # add_zone is alias for add_copper_pour
             "refill_zones": self._handle_refill_zones,
             # Design rule commands
             "set_design_rules": self.design_rule_commands.set_design_rules,
             "get_design_rules": self.design_rule_commands.get_design_rules,
             "run_drc": self.design_rule_commands.run_drc,
             "get_drc_violations": self.design_rule_commands.get_drc_violations,
+            "add_net_class": self.design_rule_commands.add_net_class,
+            "assign_net_to_class": self.design_rule_commands.assign_net_to_class,
+            "set_layer_constraints": self.design_rule_commands.set_layer_constraints,
+            "check_clearance": self.design_rule_commands.check_clearance,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
             "export_svg": self.export_commands.export_svg,
             "export_3d": self.export_commands.export_3d,
             "export_bom": self.export_commands.export_bom,
+            "export_netlist": self.export_commands.export_netlist,
+            "export_position_file": self.export_commands.export_position_file,
+            "export_vrml": self.export_commands.export_vrml,
             # Library commands (footprint management)
             "list_libraries": self.library_commands.list_libraries,
             "search_footprints": self.library_commands.search_footprints,
@@ -376,6 +387,7 @@ class KiCADInterface:
             "edit_schematic_component": self._handle_edit_schematic_component,
             "get_schematic_component": self._handle_get_schematic_component,
             "add_schematic_wire": self._handle_add_schematic_wire,
+            "add_wire": self._handle_add_schematic_wire,  # Alias for TS tool
             "add_schematic_connection": self._handle_add_schematic_connection,
             "add_schematic_net_label": self._handle_add_schematic_net_label,
             "connect_to_net": self._handle_connect_to_net,
@@ -2629,7 +2641,7 @@ class KiCADInterface:
             nets_by_name = netinfo.NetsByName()
             added_nets = []
             for net_name in net_names:
-                if not nets_by_name.has_key(net_name):
+                if net_name not in nets_by_name:
                     net_item = pcbnew.NETINFO_ITEM(board, net_name)
                     board.Add(net_item)
                     added_nets.append(net_name)
@@ -2648,7 +2660,7 @@ class KiCADInterface:
                     key = (ref, str(pad_num))
                     if key in pad_net_map:
                         net_name = pad_net_map[key]
-                        if nets_by_name.has_key(net_name):
+                        if net_name in nets_by_name:
                             pad.SetNet(nets_by_name[net_name])
                             assigned_pads += 1
                     else:
@@ -3969,7 +3981,7 @@ print("ok")
                 if part.get("price_json"):
                     try:
                         part["price_breaks"] = json.loads(part["price_json"])
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         part["price_breaks"] = []
 
             return {"success": True, "parts": parts, "count": len(parts)}
@@ -4027,7 +4039,7 @@ print("ok")
                     reference_price = float(
                         original_part["price_breaks"][0].get("price", 0)
                     )
-                except:
+                except (IndexError, KeyError, TypeError, ValueError):
                     pass
 
             alternatives = self.jlcpcb_parts.suggest_alternatives(lcsc_number, limit)
@@ -4037,7 +4049,7 @@ print("ok")
                 if part.get("price_json"):
                     try:
                         part["price_breaks"] = json.loads(part["price_json"])
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         part["price_breaks"] = []
 
             return {

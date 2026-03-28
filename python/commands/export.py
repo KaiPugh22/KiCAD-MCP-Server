@@ -703,3 +703,167 @@ class ExportCommands:
             f.writelines(session_lines)
 
         logger.info(f"[DEV] MCP session log saved to: {dest} ({len(session_lines)} lines)")
+
+    def export_netlist(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Export netlist from PCB using kicad-cli"""
+        import subprocess
+
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            output_path = params.get("outputPath")
+            fmt = params.get("format", "KiCad")
+
+            if not output_path:
+                return {"success": False, "message": "Missing output path",
+                        "errorDetails": "outputPath parameter is required"}
+
+            board_file = self.board.GetFileName()
+            if not board_file or not os.path.exists(board_file):
+                return {"success": False, "message": "Board file not found",
+                        "errorDetails": "Board must be saved before exporting"}
+
+            output_path = os.path.abspath(os.path.expanduser(output_path))
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            kicad_cli = self._find_kicad_cli()
+            if not kicad_cli:
+                return {"success": False, "message": "kicad-cli not found",
+                        "errorDetails": "KiCAD CLI tool not found. Install KiCAD 9.0+."}
+
+            cmd = [kicad_cli, "pcb", "export", "netlist", "--output", output_path]
+
+            fmt_map = {"KiCad": "kicad", "Spice": "spice", "Cadstar": "cadstar", "OrcadPCB2": "orcadpcb2"}
+            if fmt in fmt_map:
+                cmd.extend(["--format", fmt_map[fmt]])
+
+            cmd.append(board_file)
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode != 0:
+                return {"success": False, "message": "Netlist export failed",
+                        "errorDetails": result.stderr or result.stdout}
+
+            return {"success": True, "message": f"Exported netlist to {output_path}",
+                    "outputPath": output_path, "format": fmt}
+
+        except Exception as e:
+            logger.error(f"Error exporting netlist: {str(e)}")
+            return {"success": False, "message": "Failed to export netlist",
+                    "errorDetails": str(e)}
+
+    def export_position_file(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Export component position file (pick-and-place) using kicad-cli"""
+        import subprocess
+
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            output_path = params.get("outputPath")
+            fmt = params.get("format", "CSV")
+            units = params.get("units", "mm")
+            side = params.get("side", "both")
+
+            if not output_path:
+                return {"success": False, "message": "Missing output path",
+                        "errorDetails": "outputPath parameter is required"}
+
+            board_file = self.board.GetFileName()
+            if not board_file or not os.path.exists(board_file):
+                return {"success": False, "message": "Board file not found",
+                        "errorDetails": "Board must be saved before exporting"}
+
+            output_path = os.path.abspath(os.path.expanduser(output_path))
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            kicad_cli = self._find_kicad_cli()
+            if not kicad_cli:
+                return {"success": False, "message": "kicad-cli not found",
+                        "errorDetails": "KiCAD CLI tool not found. Install KiCAD 9.0+."}
+
+            cmd = [kicad_cli, "pcb", "export", "pos", "--output", output_path]
+
+            if fmt.upper() == "ASCII":
+                cmd.append("--format=ascii")
+            else:
+                cmd.append("--format=csv")
+
+            cmd.append(f"--units={'millimeters' if units == 'mm' else 'inches'}")
+
+            if side == "top":
+                cmd.append("--side=front")
+            elif side == "bottom":
+                cmd.append("--side=back")
+            else:
+                cmd.append("--side=both")
+
+            cmd.append(board_file)
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode != 0:
+                return {"success": False, "message": "Position file export failed",
+                        "errorDetails": result.stderr or result.stdout}
+
+            return {"success": True, "message": f"Exported position file to {output_path}",
+                    "outputPath": output_path, "format": fmt, "units": units, "side": side}
+
+        except Exception as e:
+            logger.error(f"Error exporting position file: {str(e)}")
+            return {"success": False, "message": "Failed to export position file",
+                    "errorDetails": str(e)}
+
+    def export_vrml(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Export VRML 3D model using kicad-cli"""
+        import subprocess
+
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            output_path = params.get("outputPath")
+            include_components = params.get("includeComponents", True)
+            use_relative_paths = params.get("useRelativePaths", True)
+
+            if not output_path:
+                return {"success": False, "message": "Missing output path",
+                        "errorDetails": "outputPath parameter is required"}
+
+            board_file = self.board.GetFileName()
+            if not board_file or not os.path.exists(board_file):
+                return {"success": False, "message": "Board file not found",
+                        "errorDetails": "Board must be saved before exporting"}
+
+            output_path = os.path.abspath(os.path.expanduser(output_path))
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            kicad_cli = self._find_kicad_cli()
+            if not kicad_cli:
+                return {"success": False, "message": "kicad-cli not found",
+                        "errorDetails": "KiCAD CLI tool not found. Install KiCAD 9.0+."}
+
+            cmd = [kicad_cli, "pcb", "export", "vrml", "--output", output_path]
+
+            if not include_components:
+                cmd.append("--no-models")
+            if use_relative_paths:
+                cmd.append("--models-relative")
+
+            cmd.append(board_file)
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode != 0:
+                return {"success": False, "message": "VRML export failed",
+                        "errorDetails": result.stderr or result.stdout}
+
+            return {"success": True, "message": f"Exported VRML to {output_path}",
+                    "outputPath": output_path}
+
+        except Exception as e:
+            logger.error(f"Error exporting VRML: {str(e)}")
+            return {"success": False, "message": "Failed to export VRML",
+                    "errorDetails": str(e)}

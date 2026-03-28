@@ -1229,3 +1229,159 @@ class ComponentCommands:
                 module.SetPosition(pcbnew.VECTOR2I(pos.x, bottom - 2000000))  # 2mm offset from edge
         else:
             logger.warning(f"Unknown edge alignment: {edge}")
+
+    def add_component_annotation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Add an annotation/comment text field to a component"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            reference = params.get("reference")
+            annotation = params.get("annotation")
+            visible = params.get("visible", True)
+
+            if not reference or not annotation:
+                return {"success": False, "message": "Missing parameters",
+                        "errorDetails": "reference and annotation are required"}
+
+            footprint = None
+            for fp in self.board.GetFootprints():
+                if fp.GetReference() == reference:
+                    footprint = fp
+                    break
+
+            if not footprint:
+                return {"success": False, "message": f"Component '{reference}' not found"}
+
+            # Add a new text field to the footprint
+            field = pcbnew.PCB_FIELD(footprint, footprint.GetFieldCount(), "Annotation")
+            field.SetText(annotation)
+            field.SetVisible(visible)
+            pos = footprint.GetPosition()
+            field.SetPosition(pcbnew.VECTOR2I(pos.x, pos.y + 2000000))  # 2mm below
+            field.SetLayer(pcbnew.F_SilkS)
+            footprint.Add(field)
+
+            return {"success": True, "message": f"Added annotation to {reference}",
+                    "annotation": annotation, "visible": visible}
+
+        except Exception as e:
+            logger.error(f"Error adding annotation: {str(e)}")
+            return {"success": False, "message": "Failed to add annotation",
+                    "errorDetails": str(e)}
+
+    def group_components(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Group components together on the PCB"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            references = params.get("references", [])
+            group_name = params.get("groupName")
+
+            if not references or not group_name:
+                return {"success": False, "message": "Missing parameters",
+                        "errorDetails": "references and groupName are required"}
+
+            # Create a PCB group
+            group = pcbnew.PCB_GROUP(self.board)
+            group.SetName(group_name)
+
+            added = []
+            not_found = []
+            for ref in references:
+                found = False
+                for fp in self.board.GetFootprints():
+                    if fp.GetReference() == ref:
+                        group.AddItem(fp)
+                        added.append(ref)
+                        found = True
+                        break
+                if not found:
+                    not_found.append(ref)
+
+            self.board.Add(group)
+
+            result = {"success": True, "message": f"Created group '{group_name}' with {len(added)} components",
+                      "groupName": group_name, "added": added}
+            if not_found:
+                result["notFound"] = not_found
+            return result
+
+        except Exception as e:
+            logger.error(f"Error grouping components: {str(e)}")
+            return {"success": False, "message": "Failed to group components",
+                    "errorDetails": str(e)}
+
+    def replace_component(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace a component with a different one, preserving position and nets"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            reference = params.get("reference")
+            new_component_id = params.get("newComponentId")
+            new_footprint = params.get("newFootprint")
+            new_value = params.get("newValue")
+
+            if not reference or not new_component_id:
+                return {"success": False, "message": "Missing parameters",
+                        "errorDetails": "reference and newComponentId are required"}
+
+            # Find existing component
+            old_fp = None
+            for fp in self.board.GetFootprints():
+                if fp.GetReference() == reference:
+                    old_fp = fp
+                    break
+
+            if not old_fp:
+                return {"success": False, "message": f"Component '{reference}' not found"}
+
+            # Save old position, rotation, layer, and net assignments
+            old_pos = old_fp.GetPosition()
+            old_angle = old_fp.GetOrientationDegrees()
+            old_layer = old_fp.GetLayer()
+            old_pad_nets = {}
+            for pad in old_fp.Pads():
+                old_pad_nets[pad.GetNumber()] = pad.GetNet()
+
+            # Delete old component
+            self.board.Remove(old_fp)
+
+            # Place new component at same position
+            place_result = self.place_component({
+                "componentId": new_component_id,
+                "position": {"x": old_pos.x / 1000000, "y": old_pos.y / 1000000, "unit": "mm"},
+                "reference": reference,
+                "footprint": new_footprint,
+                "value": new_value,
+                "rotation": old_angle,
+                "layer": "F.Cu" if old_layer == pcbnew.F_Cu else "B.Cu",
+            })
+
+            if not place_result.get("success"):
+                # Restore old component if placement failed
+                self.board.Add(old_fp)
+                return {"success": False, "message": "Failed to place replacement component",
+                        "errorDetails": place_result.get("errorDetails", "Unknown error")}
+
+            # Try to restore net assignments
+            for fp in self.board.GetFootprints():
+                if fp.GetReference() == reference:
+                    for pad in fp.Pads():
+                        pad_num = pad.GetNumber()
+                        if pad_num in old_pad_nets:
+                            pad.SetNet(old_pad_nets[pad_num])
+                    break
+
+            return {"success": True, "message": f"Replaced {reference} with {new_component_id}",
+                    "reference": reference, "newComponentId": new_component_id}
+
+        except Exception as e:
+            logger.error(f"Error replacing component: {str(e)}")
+            return {"success": False, "message": "Failed to replace component",
+                    "errorDetails": str(e)}

@@ -312,10 +312,10 @@ class TestCoreLogic:
         result = get_wire_connections(sch, "/fake/path.kicad_sch", 0.0, 0.0)
         assert result == {"pins": [], "wires": []}
 
-    def test_get_wire_connections_no_wire_at_point_returns_none(self):
+    def test_get_wire_connections_no_wire_at_point_returns_empty(self):
         sch = _make_schematic(_make_wire(0.0, 0.0, 1.0, 0.0))
         result = get_wire_connections(sch, "/fake/path.kicad_sch", 5.0, 0.0)
-        assert result is None
+        assert result == {"pins": [], "wires": [], "labels": []}
 
     def test_get_wire_connections_returns_wire_data(self):
         sch = _make_schematic(_make_wire(0.0, 0.0, 1.0, 0.0))
