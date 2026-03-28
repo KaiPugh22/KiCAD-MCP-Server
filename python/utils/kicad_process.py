@@ -111,7 +111,7 @@ class KiCADProcessManager:
                             )
                             if "kicad_interface.py" not in cmdline.stdout:
                                 return True
-                        except:
+                        except (subprocess.SubprocessError, OSError):
                             pass
                 return False
 

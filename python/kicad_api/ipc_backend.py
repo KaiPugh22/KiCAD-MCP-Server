@@ -546,7 +546,7 @@ class IPCBoardAPI(BoardAPI):
                         if loaded_fp:
                             logger.info(f"Found footprint '{fp_name}' in library '{lib}'")
                             return loaded_fp
-                    except:
+                    except Exception:
                         continue
 
             logger.warning(f"Footprint '{footprint_path}' not found in any library")

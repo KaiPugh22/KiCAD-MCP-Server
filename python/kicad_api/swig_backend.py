@@ -156,9 +156,20 @@ class SWIGBoardAPI(BoardAPI):
             return False
 
     def get_size(self) -> Dict[str, float]:
-        """Get board size"""
-        # TODO: Implement using existing SWIG code
-        raise NotImplementedError("get_size not yet wrapped")
+        """Get board size from board edge bounding box"""
+        try:
+            import pcbnew
+            if not self._board:
+                return {"width": 0, "height": 0, "unit": "mm"}
+            board_box = self._board.GetBoardEdgesBoundingBox()
+            return {
+                "width": board_box.GetWidth() / 1000000,
+                "height": board_box.GetHeight() / 1000000,
+                "unit": "mm"
+            }
+        except Exception as e:
+            logger.error(f"Failed to get board size: {e}")
+            return {"width": 0, "height": 0, "unit": "mm"}
 
     def add_layer(self, layer_name: str, layer_type: str) -> bool:
         """Add layer using existing implementation"""

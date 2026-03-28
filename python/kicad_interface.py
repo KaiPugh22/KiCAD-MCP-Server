@@ -564,18 +564,36 @@ class KiCADInterface:
         "move_component",
         "rotate_component",
         "delete_component",
+        "edit_component",
+        "replace_component",
+        "add_component_annotation",
+        "group_components",
+        "align_components",
+        "duplicate_component",
+        "place_component_array",
         "route_trace",
         "route_pad_to_pad",
+        "route_differential_pair",
+        "copy_routing_pattern",
         "add_via",
         "delete_trace",
+        "modify_trace",
         "add_net",
+        "create_netclass",
+        "add_net_class",
+        "assign_net_to_class",
         "add_board_outline",
         "add_mounting_hole",
         "add_text",
         "add_board_text",
         "add_copper_pour",
+        "add_zone",
         "refill_zones",
+        "set_design_rules",
+        "set_layer_constraints",
         "import_svg_logo",
+        "import_ses",
+        "autoroute",
         "sync_schematic_to_board",
         "connect_passthrough",
     }
@@ -602,6 +620,7 @@ class KiCADInterface:
         self.component_commands.board = self.board
         self.routing_commands.board = self.board
         self.design_rule_commands.board = self.board
+        self.design_rule_commands._routing_commands = self.routing_commands
         self.export_commands.board = self.board
         self.freerouting_commands.board = self.board
 
