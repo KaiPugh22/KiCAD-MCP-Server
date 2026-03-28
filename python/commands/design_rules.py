@@ -666,3 +666,274 @@ class DesignRuleCommands:
             logger.error(f"Error checking clearance: {str(e)}")
             return {"success": False, "message": "Failed to check clearance",
                     "errorDetails": str(e)}
+
+    # ── Manufacturing presets ─────────────────────────────────
+
+    # All values in mm unless noted.  Sources: fab house capability pages
+    # (JLCPCB 2024-rev, OSHPark 2024, PCBWay 2024-standard).
+    MANUFACTURING_PRESETS = {
+        "jlcpcb_2layer": {
+            "description": "JLCPCB standard 2-layer PCB (cheapest, most common for prototypes)",
+            "clearance": 0.15,          # 6 mil – safe above 5 mil fab minimum
+            "trackWidth": 0.2,          # 8 mil – reliable for signal traces
+            "viaDiameter": 0.6,         # pad diameter
+            "viaDrill": 0.3,            # smallest standard drill
+            "minTrackWidth": 0.127,     # 5 mil absolute fab minimum
+            "minClearance": 0.127,      # 5 mil absolute fab minimum
+            "minViaDiameter": 0.6,
+            "minViaDrill": 0.3,
+            "minThroughDrill": 0.3,
+            "boardThickness": 1.6,
+            "copperWeight": "1oz",
+            "silkscreenMinHeight": 1.0,
+            "silkscreenMinWidth": 0.15,
+            "solderMaskBridge": 0.4,
+            "traceToEdge": 0.3,
+            "notes": "1.6 mm FR4, HASL finish, green solder mask. Cheapest option at ~$2 for 5 pcs (100x100 mm). Use 0.15 mm clearance/trace for reliability margin.",
+        },
+        "jlcpcb_4layer": {
+            "description": "JLCPCB standard 4-layer PCB (better for mixed-signal, MCU boards)",
+            "clearance": 0.15,
+            "trackWidth": 0.15,
+            "viaDiameter": 0.6,
+            "viaDrill": 0.3,
+            "minTrackWidth": 0.1,
+            "minClearance": 0.1,
+            "minViaDiameter": 0.45,
+            "minViaDrill": 0.2,
+            "minThroughDrill": 0.2,
+            "boardThickness": 1.6,
+            "copperWeight": "1oz",
+            "silkscreenMinHeight": 1.0,
+            "silkscreenMinWidth": 0.15,
+            "solderMaskBridge": 0.4,
+            "traceToEdge": 0.3,
+            "notes": "4-layer stackup: SIG / GND / PWR / SIG. Inner copper 0.5 oz. ~$7 for 5 pcs. Good for MCU, USB, I2C designs.",
+        },
+        "oshpark_2layer": {
+            "description": "OSHPark 2-layer (ENIG gold finish, high quality, $5/sq-in)",
+            "clearance": 0.152,         # 6 mil
+            "trackWidth": 0.2,
+            "viaDiameter": 0.61,        # 24 mil pad for 10 mil drill
+            "viaDrill": 0.254,          # 10 mil
+            "minTrackWidth": 0.152,     # 6 mil
+            "minClearance": 0.152,      # 6 mil
+            "minViaDiameter": 0.61,
+            "minViaDrill": 0.254,
+            "minThroughDrill": 0.254,
+            "boardThickness": 1.6,
+            "copperWeight": "1oz",
+            "silkscreenMinHeight": 1.0,
+            "silkscreenMinWidth": 0.15,
+            "solderMaskBridge": 0.4,
+            "traceToEdge": 0.25,
+            "notes": "Purple PCB, ENIG finish (great for fine-pitch). 3 copies included. Slower turnaround (~12 days). Higher quality than budget fabs.",
+        },
+        "pcbway_2layer": {
+            "description": "PCBWay standard 2-layer PCB",
+            "clearance": 0.15,
+            "trackWidth": 0.2,
+            "viaDiameter": 0.6,
+            "viaDrill": 0.3,
+            "minTrackWidth": 0.127,     # 5 mil
+            "minClearance": 0.127,      # 5 mil
+            "minViaDiameter": 0.5,
+            "minViaDrill": 0.2,
+            "minThroughDrill": 0.2,
+            "boardThickness": 1.6,
+            "copperWeight": "1oz",
+            "silkscreenMinHeight": 0.8,
+            "silkscreenMinWidth": 0.15,
+            "solderMaskBridge": 0.4,
+            "traceToEdge": 0.3,
+            "notes": "Similar to JLCPCB. Supports more finishes (ENIG, OSP, Immersion Silver). Good for larger boards.",
+        },
+    }
+
+    def apply_manufacturing_preset(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply a manufacturer's design rules to the board"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            preset_name = params.get("preset", "").lower().replace("-", "_").replace(" ", "_")
+
+            if preset_name == "list" or not preset_name:
+                # Return available presets
+                presets = []
+                for key, val in self.MANUFACTURING_PRESETS.items():
+                    presets.append({
+                        "name": key,
+                        "description": val["description"],
+                        "notes": val.get("notes", ""),
+                    })
+                return {"success": True, "message": "Available manufacturing presets",
+                        "presets": presets}
+
+            if preset_name not in self.MANUFACTURING_PRESETS:
+                available = ", ".join(self.MANUFACTURING_PRESETS.keys())
+                return {"success": False,
+                        "message": f"Unknown preset '{preset_name}'",
+                        "errorDetails": f"Available presets: {available}"}
+
+            preset = self.MANUFACTURING_PRESETS[preset_name]
+            scale = 1000000  # mm to nm
+
+            ds = self.board.GetDesignSettings()
+
+            # Apply design rules
+            ds.m_MinClearance = int(preset["minClearance"] * scale)
+            ds.m_TrackMinWidth = int(preset["minTrackWidth"] * scale)
+            ds.m_ViasMinSize = int(preset["minViaDiameter"] * scale)
+            ds.m_MinThroughDrill = int(preset["minThroughDrill"] * scale)
+
+            # Set default track/via sizes
+            ds.SetCustomTrackWidth(int(preset["trackWidth"] * scale))
+            ds.SetCustomViaSize(int(preset["viaDiameter"] * scale))
+            ds.SetCustomViaDrill(int(preset["viaDrill"] * scale))
+            ds.UseCustomTrackViaSize(True)
+
+            return {
+                "success": True,
+                "message": f"Applied '{preset_name}' manufacturing preset",
+                "preset": preset_name,
+                "description": preset["description"],
+                "rules_applied": {
+                    "clearance": preset["clearance"],
+                    "trackWidth": preset["trackWidth"],
+                    "viaDiameter": preset["viaDiameter"],
+                    "viaDrill": preset["viaDrill"],
+                    "minTrackWidth": preset["minTrackWidth"],
+                    "minClearance": preset["minClearance"],
+                    "boardThickness": preset["boardThickness"],
+                },
+                "notes": preset.get("notes", ""),
+            }
+
+        except Exception as e:
+            logger.error(f"Error applying manufacturing preset: {str(e)}")
+            return {"success": False, "message": "Failed to apply manufacturing preset",
+                    "errorDetails": str(e)}
+
+    def validate_for_manufacturing(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate the board against a manufacturer's capabilities (DFM check)"""
+        try:
+            if not self.board:
+                return {"success": False, "message": "No board is loaded",
+                        "errorDetails": "Load or create a board first"}
+
+            preset_name = params.get("preset", "jlcpcb_2layer").lower().replace("-", "_").replace(" ", "_")
+            if preset_name not in self.MANUFACTURING_PRESETS:
+                available = ", ".join(self.MANUFACTURING_PRESETS.keys())
+                return {"success": False, "message": f"Unknown preset '{preset_name}'",
+                        "errorDetails": f"Available: {available}"}
+
+            preset = self.MANUFACTURING_PRESETS[preset_name]
+            scale = 1000000
+            violations = []
+
+            ds = self.board.GetDesignSettings()
+
+            # Check design rules against preset minimums
+            if ds.m_MinClearance < int(preset["minClearance"] * scale):
+                violations.append({
+                    "type": "clearance",
+                    "severity": "error",
+                    "message": f"Min clearance ({ds.m_MinClearance / scale:.3f} mm) below fab minimum ({preset['minClearance']} mm)",
+                })
+
+            if ds.m_TrackMinWidth < int(preset["minTrackWidth"] * scale):
+                violations.append({
+                    "type": "track_width",
+                    "severity": "error",
+                    "message": f"Min track width ({ds.m_TrackMinWidth / scale:.3f} mm) below fab minimum ({preset['minTrackWidth']} mm)",
+                })
+
+            if ds.m_ViasMinSize < int(preset["minViaDiameter"] * scale):
+                violations.append({
+                    "type": "via_size",
+                    "severity": "error",
+                    "message": f"Min via diameter ({ds.m_ViasMinSize / scale:.3f} mm) below fab minimum ({preset['minViaDiameter']} mm)",
+                })
+
+            if ds.m_MinThroughDrill < int(preset["minViaDrill"] * scale):
+                violations.append({
+                    "type": "via_drill",
+                    "severity": "error",
+                    "message": f"Min via drill ({ds.m_MinThroughDrill / scale:.3f} mm) below fab minimum ({preset['minViaDrill']} mm)",
+                })
+
+            # Check actual traces on the board
+            for track in self.board.GetTracks():
+                if track.Type() == pcbnew.PCB_VIA_T:
+                    drill = track.GetDrillValue()
+                    if drill > 0 and drill < int(preset["minViaDrill"] * scale):
+                        violations.append({
+                            "type": "via_drill",
+                            "severity": "error",
+                            "message": f"Via at ({track.GetPosition().x / scale:.2f}, {track.GetPosition().y / scale:.2f}) drill {drill / scale:.3f} mm < fab min {preset['minViaDrill']} mm",
+                        })
+                else:
+                    width = track.GetWidth()
+                    if width < int(preset["minTrackWidth"] * scale):
+                        start = track.GetStart()
+                        violations.append({
+                            "type": "track_width",
+                            "severity": "error",
+                            "message": f"Track at ({start.x / scale:.2f}, {start.y / scale:.2f}) width {width / scale:.3f} mm < fab min {preset['minTrackWidth']} mm",
+                        })
+
+            # Check board size
+            bbox = self.board.GetBoardEdgesBoundingBox()
+            board_w = bbox.GetWidth() / scale
+            board_h = bbox.GetHeight() / scale
+
+            # Warnings (non-blocking recommendations)
+            if board_w > 100 or board_h > 100:
+                violations.append({
+                    "type": "board_size",
+                    "severity": "warning",
+                    "message": f"Board size ({board_w:.1f} x {board_h:.1f} mm) exceeds 100x100 mm. Most budget fab pricing increases above this size.",
+                })
+
+            # Count components for assembly check
+            fp_count = len(list(self.board.GetFootprints()))
+            if fp_count > 0:
+                smd_count = sum(1 for fp in self.board.GetFootprints()
+                                if fp.GetAttributes() & 1)  # SMD flag
+                tht_count = fp_count - smd_count
+                if tht_count > 0:
+                    violations.append({
+                        "type": "assembly",
+                        "severity": "info",
+                        "message": f"{tht_count} through-hole component(s) detected. Budget assembly services (JLCPCB, PCBWay) charge extra for THT. Consider SMD alternatives where possible.",
+                    })
+
+            errors = [v for v in violations if v["severity"] == "error"]
+            warnings = [v for v in violations if v["severity"] == "warning"]
+            infos = [v for v in violations if v["severity"] == "info"]
+
+            passes = len(errors) == 0
+
+            return {
+                "success": True,
+                "passes": passes,
+                "message": f"DFM check {'PASSED' if passes else 'FAILED'} for {preset_name}: {len(errors)} errors, {len(warnings)} warnings, {len(infos)} info",
+                "preset": preset_name,
+                "violations": violations,
+                "summary": {
+                    "errors": len(errors),
+                    "warnings": len(warnings),
+                    "info": len(infos),
+                    "total_tracks": sum(1 for t in self.board.GetTracks() if t.Type() != pcbnew.PCB_VIA_T),
+                    "total_vias": sum(1 for t in self.board.GetTracks() if t.Type() == pcbnew.PCB_VIA_T),
+                    "total_footprints": fp_count,
+                    "board_size": f"{board_w:.1f} x {board_h:.1f} mm",
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Error validating for manufacturing: {str(e)}")
+            return {"success": False, "message": "Failed to validate for manufacturing",
+                    "errorDetails": str(e)}

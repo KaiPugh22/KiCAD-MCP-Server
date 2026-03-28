@@ -69,7 +69,7 @@ export const toolCategories: ToolCategory[] = [
   },
   {
     name: "drc",
-    description: "Design rule checking and electrical validation: DRC, net classes, clearances",
+    description: "Design rule checking, electrical validation, manufacturing presets (JLCPCB/OSHPark/PCBWay), and DFM validation",
     tools: [
       "set_design_rules",
       "get_design_rules",
@@ -78,7 +78,9 @@ export const toolCategories: ToolCategory[] = [
       "assign_net_to_class",
       "set_layer_constraints",
       "check_clearance",
-      "get_drc_violations"
+      "get_drc_violations",
+      "apply_manufacturing_preset",
+      "validate_for_manufacturing"
     ]
   },
   {

@@ -351,6 +351,8 @@ class KiCADInterface:
             "assign_net_to_class": self.design_rule_commands.assign_net_to_class,
             "set_layer_constraints": self.design_rule_commands.set_layer_constraints,
             "check_clearance": self.design_rule_commands.check_clearance,
+            "apply_manufacturing_preset": self.design_rule_commands.apply_manufacturing_preset,
+            "validate_for_manufacturing": self.design_rule_commands.validate_for_manufacturing,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,

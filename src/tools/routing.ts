@@ -69,7 +69,7 @@ export function registerRoutingTools(
   // Add via tool
   server.tool(
     "add_via",
-    "Add a via to the PCB",
+    "Add a via to the PCB for layer transitions. Standard signal via: 0.6mm pad / 0.3mm drill. Power via: 1.0mm pad / 0.5mm drill. For thermal pads under ICs, use an array of 4-9 vias with 0.3mm drill at 1.0-1.2mm pitch. Budget fabs (JLCPCB) minimum: 0.3mm drill, 0.6mm pad.",
     {
       position: z
         .object({
@@ -82,7 +82,7 @@ export function registerRoutingTools(
       viaType: z
         .string()
         .optional()
-        .describe("Via type (through, blind, buried)"),
+        .describe("Via type: 'through' (default, cheapest), 'blind' (advanced fab), 'buried' (advanced fab)"),
     },
     async (args: any) => {
       const result = await callKicadScript("add_via", args);
@@ -100,11 +100,11 @@ export function registerRoutingTools(
   // Add copper pour tool
   server.tool(
     "add_copper_pour",
-    "Add a copper pour (ground/power plane) to the PCB",
+    "Add a copper pour (ground/power plane) to the PCB. Best practice: add a GND pour on B.Cu (bottom) for 2-layer boards to provide a return current path and reduce EMI. Use thermal relief for pads connected to pours (default) to make soldering easier. For high-current paths, use solid connections instead.",
     {
-      layer: z.string().describe("PCB layer"),
-      net: z.string().describe("Net name"),
-      clearance: z.number().optional().describe("Clearance in mm"),
+      layer: z.string().describe("PCB layer (e.g. 'B.Cu' for ground plane, 'F.Cu' for power plane)"),
+      net: z.string().describe("Net name (typically 'GND' for ground plane, 'VCC'/'3V3' for power)"),
+      clearance: z.number().optional().describe("Clearance from pour to other copper (mm). Default: uses board clearance. Typical: 0.2-0.3mm"),
       outline: z
         .array(z.object({ x: z.number(), y: z.number() }))
         .optional()

@@ -25,21 +25,22 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   server.tool(
     "set_design_rules",
+    "Set PCB design rules (clearances, trace widths, via sizes). For prototype boards, use apply_manufacturing_preset instead for safe defaults. Typical values: clearance 0.15-0.2mm, trackWidth 0.2-0.25mm for signals / 0.5-1.0mm for power, viaDiameter 0.6mm, viaDrill 0.3mm. Budget fabs (JLCPCB) minimum: 0.127mm trace/clearance, 0.3mm via drill.",
     {
-      clearance: z.number().optional().describe("Minimum clearance between copper items (mm)"),
-      trackWidth: z.number().optional().describe("Default track width (mm)"),
-      viaDiameter: z.number().optional().describe("Default via diameter (mm)"),
-      viaDrill: z.number().optional().describe("Default via drill size (mm)"),
-      microViaDiameter: z.number().optional().describe("Default micro via diameter (mm)"),
-      microViaDrill: z.number().optional().describe("Default micro via drill size (mm)"),
-      minTrackWidth: z.number().optional().describe("Minimum track width (mm)"),
-      minViaDiameter: z.number().optional().describe("Minimum via diameter (mm)"),
-      minViaDrill: z.number().optional().describe("Minimum via drill size (mm)"),
+      clearance: z.number().optional().describe("Minimum clearance between copper items (mm). JLCPCB min: 0.127, recommended: 0.15-0.2"),
+      trackWidth: z.number().optional().describe("Default track width (mm). Signals: 0.2-0.25, Power: 0.5-1.0 (~1mm per 1A at 1oz copper)"),
+      viaDiameter: z.number().optional().describe("Default via pad diameter (mm). Standard: 0.6-0.8, Power: 1.0"),
+      viaDrill: z.number().optional().describe("Default via drill size (mm). Standard: 0.3-0.4, JLCPCB min: 0.3"),
+      microViaDiameter: z.number().optional().describe("Default micro via diameter (mm). Advanced fab only."),
+      microViaDrill: z.number().optional().describe("Default micro via drill size (mm). Advanced fab only."),
+      minTrackWidth: z.number().optional().describe("Absolute minimum track width (mm). JLCPCB: 0.127, OSHPark: 0.152"),
+      minViaDiameter: z.number().optional().describe("Minimum via pad diameter (mm). JLCPCB: 0.6"),
+      minViaDrill: z.number().optional().describe("Minimum via drill size (mm). JLCPCB: 0.3, OSHPark: 0.254"),
       minMicroViaDiameter: z.number().optional().describe("Minimum micro via diameter (mm)"),
       minMicroViaDrill: z.number().optional().describe("Minimum micro via drill size (mm)"),
       minHoleDiameter: z.number().optional().describe("Minimum hole diameter (mm)"),
-      requireCourtyard: z.boolean().optional().describe("Whether to require courtyards for all footprints"),
-      courtyardClearance: z.number().optional().describe("Minimum clearance between courtyards (mm)")
+      requireCourtyard: z.boolean().optional().describe("Whether to require courtyards for all footprints (recommended: true)"),
+      courtyardClearance: z.number().optional().describe("Minimum clearance between courtyards (mm). Recommended: 0.25")
     },
     async (params) => {
       logger.debug('Setting design rules');
@@ -248,6 +249,54 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
       logger.debug('Getting DRC violations');
       const result = await callKicadScript("get_drc_violations", { severity });
       
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result)
+        }]
+      };
+    }
+  );
+
+  // ------------------------------------------------------
+  // Apply Manufacturing Preset Tool
+  // ------------------------------------------------------
+  server.tool(
+    "apply_manufacturing_preset",
+    "Apply a PCB manufacturer's recommended design rules to the board. Presets include clearances, trace widths, via sizes, and drill constraints that are guaranteed to be within the fab house's capabilities. Use 'list' to see all available presets. Always apply a preset before starting layout to avoid DFM issues.",
+    {
+      preset: z.enum(["jlcpcb_2layer", "jlcpcb_4layer", "oshpark_2layer", "pcbway_2layer", "list"]).describe(
+        "Manufacturer preset to apply. 'jlcpcb_2layer' is the most common for cheap prototypes. Use 'list' to see all options with descriptions."
+      )
+    },
+    async ({ preset }) => {
+      logger.debug(`Applying manufacturing preset: ${preset}`);
+      const result = await callKicadScript("apply_manufacturing_preset", { preset });
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result)
+        }]
+      };
+    }
+  );
+
+  // ------------------------------------------------------
+  // Validate for Manufacturing (DFM Check) Tool
+  // ------------------------------------------------------
+  server.tool(
+    "validate_for_manufacturing",
+    "Run a Design-for-Manufacturing (DFM) check against a specific fab house's capabilities. Checks all traces, vias, and design rules against the manufacturer's minimums. Reports errors (will be rejected by fab), warnings (may increase cost), and info (optimization suggestions). Run this before exporting Gerbers.",
+    {
+      preset: z.enum(["jlcpcb_2layer", "jlcpcb_4layer", "oshpark_2layer", "pcbway_2layer"]).optional().describe(
+        "Manufacturer to validate against (default: jlcpcb_2layer)"
+      )
+    },
+    async ({ preset }) => {
+      logger.debug(`Validating for manufacturing: ${preset || 'jlcpcb_2layer'}`);
+      const result = await callKicadScript("validate_for_manufacturing", { preset });
+
       return {
         content: [{
           type: "text",

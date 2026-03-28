@@ -25,13 +25,14 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   server.tool(
     "export_gerber",
+    "Export Gerber fabrication files for PCB manufacturing. These are the files you upload to JLCPCB/PCBWay/OSHPark to order boards. Always enable generateDrillFiles. Use Protel extensions for maximum fab house compatibility. Run validate_for_manufacturing before exporting to catch DFM issues.",
     {
-      outputDir: z.string().describe("Directory to save Gerber files"),
-      layers: z.array(z.string()).optional().describe("Optional array of layer names to export (default: all)"),
-      useProtelExtensions: z.boolean().optional().describe("Whether to use Protel filename extensions"),
-      generateDrillFiles: z.boolean().optional().describe("Whether to generate drill files"),
-      generateMapFile: z.boolean().optional().describe("Whether to generate a map file"),
-      useAuxOrigin: z.boolean().optional().describe("Whether to use auxiliary axis as origin")
+      outputDir: z.string().describe("Directory to save Gerber files. Creates: F.Cu, B.Cu, F.SilkS, B.SilkS, F.Mask, B.Mask, Edge.Cuts + drill files"),
+      layers: z.array(z.string()).optional().describe("Layer names to export (default: all copper + mask + silk + edge cuts). For 2-layer: ['F.Cu','B.Cu','F.SilkS','B.SilkS','F.Mask','B.Mask','Edge.Cuts']"),
+      useProtelExtensions: z.boolean().optional().describe("Use Protel filename extensions (.GTL, .GBL, etc). Recommended: true for JLCPCB/PCBWay compatibility"),
+      generateDrillFiles: z.boolean().optional().describe("Generate Excellon drill files. REQUIRED for manufacturing — always set true"),
+      generateMapFile: z.boolean().optional().describe("Generate drill map file (visual reference of hole locations)"),
+      useAuxOrigin: z.boolean().optional().describe("Use auxiliary axis as origin (needed if fab requires specific origin point)")
     },
     async ({ outputDir, layers, useProtelExtensions, generateDrillFiles, generateMapFile, useAuxOrigin }) => {
       logger.debug(`Exporting Gerber files to: ${outputDir}`);
