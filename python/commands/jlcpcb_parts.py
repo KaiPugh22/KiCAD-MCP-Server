@@ -346,7 +346,7 @@ class JLCPCBPartsManager:
             if part.get('price_json'):
                 try:
                     part['price_breaks'] = json.loads(part['price_json'])
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     part['price_breaks'] = []
             return part
         return None
@@ -472,7 +472,7 @@ class JLCPCBPartsManager:
             try:
                 prices = json.loads(p.get('price_json', '[]'))
                 price = float(prices[0].get('price', 999)) if prices else 999
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError, IndexError, KeyError):
                 price = 999
             stock = p.get('stock', 0)
 

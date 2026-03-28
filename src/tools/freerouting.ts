@@ -14,7 +14,7 @@ export function registerFreeroutingTools(
   // Full autoroute: export DSN -> run Freerouting -> import SES
   server.tool(
     "autoroute",
-    "Run Freerouting autorouter on the current PCB. Exports to Specctra DSN, runs Freerouting CLI, and imports the routed SES result. Requires Java 11+ and freerouting.jar (see check_freerouting).",
+    "Run Freerouting autorouter on the current PCB. Exports to Specctra DSN, runs Freerouting CLI, and imports the routed SES result. Requires Java 21+ and freerouting.jar (see check_freerouting).",
     {
       boardPath: z
         .string()
