@@ -440,6 +440,8 @@ class KiCADInterface:
             "get_jlcpcb_part": self._handle_get_jlcpcb_part,
             "get_jlcpcb_database_stats": self._handle_get_jlcpcb_database_stats,
             "suggest_jlcpcb_alternatives": self._handle_suggest_jlcpcb_alternatives,
+            "get_rotation_correction": lambda params: self.jlcpcb_parts.get_rotation_correction(**params),
+            "generate_corrected_cpl": lambda params: self.jlcpcb_parts.generate_corrected_cpl(**params),
             # Datasheet commands
             "enrich_datasheets": self._handle_enrich_datasheets,
             "get_datasheet_url": self._handle_get_datasheet_url,

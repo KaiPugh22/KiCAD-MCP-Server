@@ -609,6 +609,240 @@ class JLCPCBPartsManager:
             self.conn.close()
 
 
+    # ── JLCPCB Rotation Corrections ───────────────────────────────────
+    # KiCad and JLCPCB use different pin-1 conventions for some packages.
+    # These corrections are applied to the position (CPL) file before upload.
+
+    ROTATION_CORRECTIONS = {
+        # SOT packages
+        "SOT-23": -180,
+        "SOT-23-3": -180,
+        "SOT-23-5": -180,
+        "SOT-23-6": -180,
+        "SOT-323": -180,
+        "SOT-363": -180,
+        "SOT-89": -180,
+        "SOT-89-3": -180,
+        "SOT-223": -180,
+        "SOT-223-3": -180,
+        # SOIC
+        "SOIC-8": -90,
+        "SOIC-14": -90,
+        "SOIC-16": -90,
+        "SOIC-18": -90,
+        "SOIC-20": -90,
+        "SOIC-24": -90,
+        "SOIC-28": -90,
+        # SSOP / TSSOP / MSOP
+        "SSOP-8": -90,
+        "SSOP-14": -90,
+        "SSOP-16": -90,
+        "SSOP-20": -90,
+        "SSOP-24": -90,
+        "SSOP-28": -90,
+        "TSSOP-8": -90,
+        "TSSOP-14": -90,
+        "TSSOP-16": -90,
+        "TSSOP-20": -90,
+        "TSSOP-24": -90,
+        "TSSOP-28": -90,
+        "MSOP-8": -90,
+        "MSOP-10": -90,
+        # QFN
+        "QFN-8": -90,
+        "QFN-12": -90,
+        "QFN-16": -90,
+        "QFN-20": -90,
+        "QFN-24": -90,
+        "QFN-28": -90,
+        "QFN-32": -90,
+        "QFN-40": -90,
+        "QFN-44": -90,
+        "QFN-48": -90,
+        "QFN-56": -90,
+        "QFN-64": -90,
+        "DFN-6": -90,
+        "DFN-8": -90,
+        # QFP / LQFP / TQFP
+        "LQFP-32": -90,
+        "LQFP-44": -90,
+        "LQFP-48": -90,
+        "LQFP-64": -90,
+        "LQFP-80": -90,
+        "LQFP-100": -90,
+        "LQFP-128": -90,
+        "LQFP-144": -90,
+        "LQFP-176": -90,
+        "LQFP-208": -90,
+        "TQFP-32": -90,
+        "TQFP-44": -90,
+        "TQFP-48": -90,
+        "TQFP-64": -90,
+        "TQFP-100": -90,
+        # Diodes
+        "SOD-123": -180,
+        "SOD-323": -180,
+        "SOD-523": -180,
+        "SMA": -180,
+        "SMB": -180,
+        "SMC": -180,
+        # TO packages
+        "TO-252-2": -180,
+        "TO-263-2": -180,
+        # USB connectors
+        "USB-C-SMD": 0,
+        "USB-A-TH": 0,
+        "USB-Micro-B": 0,
+    }
+
+    def get_rotation_correction(self, package: str) -> Dict:
+        """
+        Get JLCPCB rotation correction for a KiCad footprint.
+
+        Args:
+            package: Package name (e.g., "SOT-23", "SOIC-8", "QFN-32")
+
+        Returns:
+            Correction info including angle offset to apply
+        """
+        # Try exact match first
+        correction = self.ROTATION_CORRECTIONS.get(package, None)
+
+        # Try case-insensitive
+        if correction is None:
+            for key, val in self.ROTATION_CORRECTIONS.items():
+                if key.upper() == package.upper():
+                    correction = val
+                    break
+
+        # Try partial match (e.g., "QFN-32-EP" matches "QFN-32")
+        if correction is None:
+            for key, val in self.ROTATION_CORRECTIONS.items():
+                if package.upper().startswith(key.upper()):
+                    correction = val
+                    break
+
+        if correction is not None:
+            return {
+                "success": True,
+                "package": package,
+                "rotation_correction_deg": correction,
+                "message": f"Apply {correction}° rotation correction for JLCPCB CPL",
+            }
+
+        return {
+            "success": True,
+            "package": package,
+            "rotation_correction_deg": 0,
+            "message": "No correction needed (or unknown package)",
+        }
+
+    def generate_corrected_cpl(self, board_path: Optional[str] = None) -> Dict:
+        """
+        Generate a JLCPCB-corrected Component Placement List (CPL) file.
+
+        Reads the board, applies rotation corrections, and outputs a CSV
+        ready for JLCPCB upload.
+
+        Args:
+            board_path: Path to .kicad_pcb file (uses loaded board if None)
+
+        Returns:
+            Dict with file path and correction summary
+        """
+        try:
+            import pcbnew
+
+            if board_path:
+                board = pcbnew.LoadBoard(board_path)
+            else:
+                board = pcbnew.GetBoard()
+
+            if not board:
+                return {"success": False, "error": "No board available"}
+
+            import csv
+            import tempfile
+
+            output_path = str(Path(board.GetFileName()).with_suffix('.cpl.csv'))
+
+            rows = []
+            corrections_applied = 0
+
+            for fp in board.GetFootprints():
+                if fp.GetLayer() != pcbnew.F_Cu and fp.GetLayer() != pcbnew.B_Cu:
+                    continue
+
+                ref = fp.GetReference()
+                value = fp.GetValue()
+                pos = fp.GetPosition()
+                rotation = fp.GetOrientationDegrees()
+                layer = "top" if fp.GetLayer() == pcbnew.F_Cu else "bottom"
+
+                # Determine package for correction lookup
+                fp_name = str(fp.GetFPID().GetUniStringLibItemName())
+                package = self._extract_package_name(fp_name)
+
+                # Apply correction
+                correction = self.ROTATION_CORRECTIONS.get(package, 0)
+                if correction == 0:
+                    for key, val in self.ROTATION_CORRECTIONS.items():
+                        if package.upper().startswith(key.upper()):
+                            correction = val
+                            break
+
+                corrected_rotation = (rotation + correction) % 360
+                if correction != 0:
+                    corrections_applied += 1
+
+                rows.append({
+                    "Designator": ref,
+                    "Val": value,
+                    "Package": fp_name,
+                    "Mid X": f"{pcbnew.ToMM(pos.x):.4f}mm",
+                    "Mid Y": f"{-pcbnew.ToMM(pos.y):.4f}mm",  # JLCPCB Y is inverted
+                    "Rotation": f"{corrected_rotation:.1f}",
+                    "Layer": layer,
+                })
+
+            with open(output_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    "Designator", "Val", "Package", "Mid X", "Mid Y", "Rotation", "Layer"
+                ])
+                writer.writeheader()
+                writer.writerows(rows)
+
+            return {
+                "success": True,
+                "output_path": output_path,
+                "total_components": len(rows),
+                "corrections_applied": corrections_applied,
+                "message": f"Generated CPL with {corrections_applied} rotation corrections: {output_path}",
+            }
+
+        except Exception as e:
+            logger.error(f"Generate corrected CPL failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _extract_package_name(self, footprint_name: str) -> str:
+        """Extract package name from a KiCad footprint name."""
+        # e.g., "R_0402_1005Metric" -> "0402"
+        # e.g., "SOT-23-3" -> "SOT-23-3"
+        # e.g., "QFN-32-1EP_5x5mm_P0.5mm" -> "QFN-32"
+        parts = footprint_name.split("_")
+        if len(parts) >= 2:
+            # Check if second part is a metric size
+            if parts[1] and parts[1][0].isdigit() and "Metric" in footprint_name:
+                return parts[1].split("Metric")[0]
+        # Try the first part as-is for packages like SOT-23, QFN-32
+        base = parts[0] if parts else footprint_name
+        # Strip trailing details after the pin count
+        for suffix in ["_EP", "_Pad", "_P0", "_HandSoldering"]:
+            if suffix in base:
+                base = base[:base.index(suffix)]
+        return base
+
+
 if __name__ == '__main__':
     # Test the parts manager
     logging.basicConfig(level=logging.INFO)

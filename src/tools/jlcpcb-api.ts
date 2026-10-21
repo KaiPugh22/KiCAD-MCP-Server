@@ -242,4 +242,34 @@ Useful for cost optimization and finding alternatives when parts are out of stoc
       };
     }
   );
+
+  // Rotation correction lookup
+  server.tool(
+    "get_jlcpcb_rotation_correction",
+    "Get JLCPCB rotation correction for a component package (KiCad and JLCPCB use different pin-1 conventions)",
+    {
+      package: z.string().describe("Package name (e.g. SOT-23, SOIC-8, QFN-32)")
+    },
+    async (args: { package: string }) => {
+      const result = await callKicadScript("get_rotation_correction", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+  );
+
+  // Generate corrected CPL
+  server.tool(
+    "generate_jlcpcb_cpl",
+    "Generate a JLCPCB-corrected Component Placement List (CPL) CSV file with rotation corrections applied",
+    {
+      board_path: z.string().optional().describe("Path to .kicad_pcb file (uses current board if omitted)")
+    },
+    async (args: { board_path?: string }) => {
+      const result = await callKicadScript("generate_corrected_cpl", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+  );
 }
