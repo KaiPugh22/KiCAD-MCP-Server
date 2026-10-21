@@ -239,6 +239,11 @@ try:
     from commands.astar_router import AStarRouterCommands
     from commands.design_analysis import DesignAnalysisCommands
     from commands.autoplace import AutoplaceCommands
+    from commands.via_stitching import ViaStitchingCommands
+    from commands.test_points import TestPointCommands
+    from commands.pin_swap import PinSwapCommands
+    from commands.panelization import PanelizationCommands
+    from commands.copper_analysis import CopperAnalysisCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -297,6 +302,11 @@ class KiCADInterface:
         self.astar_router_commands = AStarRouterCommands(self.board)
         self.design_analysis_commands = DesignAnalysisCommands(self.board)
         self.autoplace_commands = AutoplaceCommands(self.board)
+        self.via_stitching_commands = ViaStitchingCommands(self.board)
+        self.test_point_commands = TestPointCommands(self.board)
+        self.pin_swap_commands = PinSwapCommands(self.board)
+        self.panelization_commands = PanelizationCommands(self.board)
+        self.copper_analysis_commands = CopperAnalysisCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -446,6 +456,26 @@ class KiCADInterface:
             "placement_metrics": self.autoplace_commands.placement_metrics,
             "check_autoplace": self.autoplace_commands.check_autoplace,
             "install_autoplace": self.autoplace_commands.install_autoplace,
+            # Via stitching commands
+            "add_via_stitching": self.via_stitching_commands.add_via_stitching,
+            "add_via_fence": self.via_stitching_commands.add_via_fence,
+            "add_thermal_vias": self.via_stitching_commands.add_thermal_vias,
+            # Test point commands
+            "suggest_test_points": self.test_point_commands.suggest_test_points,
+            "add_test_points": self.test_point_commands.add_test_points,
+            "audit_test_coverage": self.test_point_commands.audit_test_coverage,
+            # Pin swap optimization commands
+            "find_swappable_pins": self.pin_swap_commands.find_swappable_pins,
+            "execute_pin_swap": self.pin_swap_commands.execute_pin_swap,
+            "suggest_all_swaps": self.pin_swap_commands.suggest_all_swaps,
+            # Panelization commands
+            "calculate_panel_layout": self.panelization_commands.calculate_panel_layout,
+            "generate_panel": self.panelization_commands.generate_panel,
+            "add_fiducials": self.panelization_commands.add_fiducials,
+            # Copper analysis, design diff, and iBOM commands
+            "analyze_copper_balance": self.copper_analysis_commands.analyze_copper_balance,
+            "design_diff": self.copper_analysis_commands.design_diff,
+            "generate_ibom": self.copper_analysis_commands.generate_ibom,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -735,6 +765,11 @@ class KiCADInterface:
         self.astar_router_commands.board = self.board
         self.design_analysis_commands.board = self.board
         self.autoplace_commands.board = self.board
+        self.via_stitching_commands.board = self.board
+        self.test_point_commands.board = self.board
+        self.pin_swap_commands.board = self.board
+        self.panelization_commands.board = self.board
+        self.copper_analysis_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):

@@ -40,6 +40,11 @@ import { registerFreeroutingCloudTools } from "./tools/freerouting_cloud.js";
 import { registerAStarRouterTools } from "./tools/astar_router.js";
 import { registerDesignAnalysisTools } from "./tools/design_analysis.js";
 import { registerAutoPlaceTools } from "./tools/autoplace.js";
+import { registerViaStitchingTools } from "./tools/via_stitching.js";
+import { registerTestPointTools } from "./tools/test_points.js";
+import { registerPinSwapTools } from "./tools/pin_swap.js";
+import { registerPanelizationTools } from "./tools/panelization.js";
+import { registerCopperAnalysisTools } from "./tools/copper_analysis.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -279,6 +284,11 @@ export class KiCADMcpServer {
     registerAStarRouterTools(this.server, this.callKicadScript.bind(this));
     registerDesignAnalysisTools(this.server, this.callKicadScript.bind(this));
     registerAutoPlaceTools(this.server, this.callKicadScript.bind(this));
+    registerViaStitchingTools(this.server, this.callKicadScript.bind(this));
+    registerTestPointTools(this.server, this.callKicadScript.bind(this));
+    registerPinSwapTools(this.server, this.callKicadScript.bind(this));
+    registerPanelizationTools(this.server, this.callKicadScript.bind(this));
+    registerCopperAnalysisTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));
