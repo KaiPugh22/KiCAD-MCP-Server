@@ -229,6 +229,7 @@ try:
     from commands.freerouting import FreeroutingCommands
     from commands.calculators import CalculatorCommands
     from commands.decoupling import DecouplingCommands
+    from commands.power_integrity import PowerIntegrityCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -277,6 +278,7 @@ class KiCADInterface:
         self.design_rule_commands = DesignRuleCommands(self.board, self.routing_commands)
         self.calculator_commands = CalculatorCommands(self.board)
         self.decoupling_commands = DecouplingCommands(self.board)
+        self.power_integrity_commands = PowerIntegrityCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -373,6 +375,11 @@ class KiCADInterface:
             "analyze_decoupling": self.decoupling_commands.analyze_decoupling,
             "analyze_decoupling_placement": self.decoupling_commands.analyze_decoupling_placement,
             "suggest_decoupling": self.decoupling_commands.suggest_decoupling,
+
+            "analyze_pdn": self.power_integrity_commands.analyze_pdn,
+            "calculate_voltage_drop_plane": self.power_integrity_commands.calculate_voltage_drop_plane,
+            "suggest_bypass_strategy": self.power_integrity_commands.suggest_bypass_strategy,
+            "analyze_power_tree": self.power_integrity_commands.analyze_power_tree,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -647,6 +654,7 @@ class KiCADInterface:
         self.freerouting_commands.board = self.board
         self.calculator_commands.board = self.board
         self.decoupling_commands.board = self.board
+        self.power_integrity_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
