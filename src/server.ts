@@ -45,6 +45,12 @@ import { registerTestPointTools } from "./tools/test_points.js";
 import { registerPinSwapTools } from "./tools/pin_swap.js";
 import { registerPanelizationTools } from "./tools/panelization.js";
 import { registerCopperAnalysisTools } from "./tools/copper_analysis.js";
+import { registerOverlapResolverTools } from "./tools/overlap_resolver.js";
+import { registerBusOrderingTools } from "./tools/bus_ordering.js";
+import { registerReturnPathTools } from "./tools/return_path.js";
+import { registerFloorplannerTools } from "./tools/floorplanner.js";
+import { registerGuardTraceTools } from "./tools/guard_traces.js";
+import { registerCrystalRulesTools } from "./tools/crystal_rules.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -289,6 +295,12 @@ export class KiCADMcpServer {
     registerPinSwapTools(this.server, this.callKicadScript.bind(this));
     registerPanelizationTools(this.server, this.callKicadScript.bind(this));
     registerCopperAnalysisTools(this.server, this.callKicadScript.bind(this));
+    registerOverlapResolverTools(this.server, this.callKicadScript.bind(this));
+    registerBusOrderingTools(this.server, this.callKicadScript.bind(this));
+    registerReturnPathTools(this.server, this.callKicadScript.bind(this));
+    registerFloorplannerTools(this.server, this.callKicadScript.bind(this));
+    registerGuardTraceTools(this.server, this.callKicadScript.bind(this));
+    registerCrystalRulesTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));

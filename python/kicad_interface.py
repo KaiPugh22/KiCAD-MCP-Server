@@ -244,6 +244,12 @@ try:
     from commands.pin_swap import PinSwapCommands
     from commands.panelization import PanelizationCommands
     from commands.copper_analysis import CopperAnalysisCommands
+    from commands.overlap_resolver import OverlapResolverCommands
+    from commands.bus_ordering import BusOrderingCommands
+    from commands.return_path import ReturnPathCommands
+    from commands.floorplanner import FloorplannerCommands
+    from commands.guard_traces import GuardTraceCommands
+    from commands.crystal_rules import CrystalRulesCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -307,6 +313,12 @@ class KiCADInterface:
         self.pin_swap_commands = PinSwapCommands(self.board)
         self.panelization_commands = PanelizationCommands(self.board)
         self.copper_analysis_commands = CopperAnalysisCommands(self.board)
+        self.overlap_resolver_commands = OverlapResolverCommands(self.board)
+        self.bus_ordering_commands = BusOrderingCommands(self.board)
+        self.return_path_commands = ReturnPathCommands(self.board)
+        self.floorplanner_commands = FloorplannerCommands(self.board)
+        self.guard_trace_commands = GuardTraceCommands(self.board)
+        self.crystal_rules_commands = CrystalRulesCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -476,6 +488,31 @@ class KiCADInterface:
             "analyze_copper_balance": self.copper_analysis_commands.analyze_copper_balance,
             "design_diff": self.copper_analysis_commands.design_diff,
             "generate_ibom": self.copper_analysis_commands.generate_ibom,
+            # Overlap resolver commands
+            "detect_overlaps": self.overlap_resolver_commands.detect_overlaps,
+            "resolve_overlaps": self.overlap_resolver_commands.resolve_overlaps,
+            "suggest_overlap_fixes": self.overlap_resolver_commands.suggest_overlap_fixes,
+            # Bus ordering commands
+            "detect_bus_groups": self.bus_ordering_commands.detect_bus_groups,
+            "reorder_bus_components": self.bus_ordering_commands.reorder_bus_components,
+            "analyze_crossing_count": self.bus_ordering_commands.analyze_crossing_count,
+            # Return path analyzer commands
+            "analyze_return_paths": self.return_path_commands.analyze_return_paths,
+            "check_signal_over_split": self.return_path_commands.check_signal_over_split,
+            "suggest_stitching_locations": self.return_path_commands.suggest_stitching_locations,
+            # Floorplanner commands
+            "analyze_functional_blocks": self.floorplanner_commands.analyze_functional_blocks,
+            "generate_floorplan": self.floorplanner_commands.generate_floorplan,
+            "estimate_board_size": self.floorplanner_commands.estimate_board_size,
+            # Guard trace commands
+            "find_diff_pairs": self.guard_trace_commands.find_diff_pairs,
+            "add_guard_traces": self.guard_trace_commands.add_guard_traces,
+            # Crystal rules commands
+            "audit_crystal_layout": self.crystal_rules_commands.audit_crystal_layout,
+            # Enhanced pin swap commands
+            "define_swap_group": self.pin_swap_commands.define_swap_group,
+            "optimize_pin_assignment": self.pin_swap_commands.optimize_pin_assignment,
+            "bulk_pin_swap": self.pin_swap_commands.bulk_pin_swap,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -770,6 +807,12 @@ class KiCADInterface:
         self.pin_swap_commands.board = self.board
         self.panelization_commands.board = self.board
         self.copper_analysis_commands.board = self.board
+        self.overlap_resolver_commands.board = self.board
+        self.bus_ordering_commands.board = self.board
+        self.return_path_commands.board = self.board
+        self.floorplanner_commands.board = self.board
+        self.guard_trace_commands.board = self.board
+        self.crystal_rules_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
