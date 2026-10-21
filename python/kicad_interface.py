@@ -230,6 +230,7 @@ try:
     from commands.calculators import CalculatorCommands
     from commands.decoupling import DecouplingCommands
     from commands.power_integrity import PowerIntegrityCommands
+    from commands.placement import PlacementCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -279,6 +280,7 @@ class KiCADInterface:
         self.calculator_commands = CalculatorCommands(self.board)
         self.decoupling_commands = DecouplingCommands(self.board)
         self.power_integrity_commands = PowerIntegrityCommands(self.board)
+        self.placement_commands = PlacementCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -380,6 +382,12 @@ class KiCADInterface:
             "calculate_voltage_drop_plane": self.power_integrity_commands.calculate_voltage_drop_plane,
             "suggest_bypass_strategy": self.power_integrity_commands.suggest_bypass_strategy,
             "analyze_power_tree": self.power_integrity_commands.analyze_power_tree,
+
+            "auto_place_bypass_caps": self.placement_commands.auto_place_bypass_caps,
+            "group_by_function": self.placement_commands.group_by_function,
+            "optimize_placement": self.placement_commands.optimize_placement,
+            "arrange_in_line": self.placement_commands.arrange_in_line,
+            "spread_components": self.placement_commands.spread_components,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -655,6 +663,7 @@ class KiCADInterface:
         self.calculator_commands.board = self.board
         self.decoupling_commands.board = self.board
         self.power_integrity_commands.board = self.board
+        self.placement_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
