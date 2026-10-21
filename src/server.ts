@@ -29,6 +29,7 @@ import { registerFreeroutingTools } from "./tools/freerouting.js";
 import { registerRouterTools } from "./tools/router.js";
 import { registerCalculatorTools } from "./tools/calculators.js";
 import { registerDecouplingTools } from "./tools/decoupling.js";
+import { registerBridgeTools } from "./tools/bridge.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -257,6 +258,7 @@ export class KiCADMcpServer {
     registerFreeroutingTools(this.server, this.callKicadScript.bind(this));
     registerCalculatorTools(this.server, this.callKicadScript.bind(this));
     registerDecouplingTools(this.server, this.callKicadScript.bind(this));
+    registerBridgeTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));

@@ -1,0 +1,24 @@
+{
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
+    "name": "MCP AI Bridge",
+    "description": "Live bridge between KiCad and MCP AI server for real-time collaborative PCB editing",
+    "description_full": "Runs a local TCP server inside KiCad so the MCP AI server can push real-time board modifications while you have the board open. No more closing files — the AI sees your board and you see its changes instantly.",
+    "identifier": "com.github.mcp-ai-bridge",
+    "type": "plugin",
+    "author": {
+        "name": "KiCAD MCP Server",
+        "contact": {
+            "web": "https://github.com/KaiPugh22/KiCAD-MCP-Server"
+        }
+    },
+    "license": "MIT",
+    "resources": {},
+    "versions": [
+        {
+            "version": "1.0.0",
+            "status": "stable",
+            "kicad_version": "9.0",
+            "platforms": ["linux", "macos", "windows"]
+        }
+    ]
+}
