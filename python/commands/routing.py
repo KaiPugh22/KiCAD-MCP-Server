@@ -1380,6 +1380,622 @@ class RoutingCommands:
                 "errorDetails": str(e),
             }
 
+    def route_differential_pairs(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Route multiple differential pairs as a bus with waypoints.
+
+        Routes pairs like USB (D+/D-, SSRX+/SSRX-) or HDMI TMDS channels
+        simultaneously, maintaining configurable inter-pair spacing.
+        Supports waypoints so the bus can turn corners.
+        """
+        try:
+            if not self.board:
+                return {
+                    "success": False,
+                    "message": "No board is loaded",
+                    "errorDetails": "Load or create a board first",
+                }
+
+            pairs = params.get("pairs", [])
+            layer = params.get("layer", "F.Cu")
+            width = params.get("width")
+            gap = params.get("gap", 0.2)
+            inter_pair_spacing = params.get("interPairSpacing", 0.5)
+            waypoints = params.get("waypoints", [])
+
+            if not pairs or len(pairs) < 1:
+                return {
+                    "success": False,
+                    "message": "Missing pairs",
+                    "errorDetails": "Provide at least one pair with netPos and netNeg",
+                }
+
+            if len(waypoints) < 2:
+                return {
+                    "success": False,
+                    "message": "Need at least 2 waypoints",
+                    "errorDetails": "Provide start and end points as waypoints",
+                }
+
+            layer_id = self.board.GetLayerID(layer)
+            if layer_id < 0:
+                return {
+                    "success": False,
+                    "message": "Invalid layer",
+                    "errorDetails": f"Layer '{layer}' does not exist",
+                }
+
+            netinfo = self.board.GetNetInfo()
+            nets_map = netinfo.NetsByName()
+
+            scale = 1000000
+            gap_nm = int(gap * scale)
+            pair_pitch_nm = int(inter_pair_spacing * scale)
+
+            if width:
+                trace_width_nm = int(width * scale)
+            else:
+                trace_width_nm = self.board.GetDesignSettings().GetCurrentTrackWidth()
+
+            num_pairs = len(pairs)
+            total_bus_width_nm = (num_pairs - 1) * pair_pitch_nm
+            routed_pairs = []
+            total_segments = 0
+
+            for pair_idx, pair in enumerate(pairs):
+                net_pos_name = pair.get("netPos")
+                net_neg_name = pair.get("netNeg")
+                if not net_pos_name or not net_neg_name:
+                    return {
+                        "success": False,
+                        "message": f"Pair {pair_idx} missing netPos or netNeg",
+                        "errorDetails": "Each pair must have netPos and netNeg",
+                    }
+
+                net_pos_obj = nets_map[net_pos_name] if nets_map.has_key(net_pos_name) else None
+                net_neg_obj = nets_map[net_neg_name] if nets_map.has_key(net_neg_name) else None
+
+                if not net_pos_obj or not net_neg_obj:
+                    missing = []
+                    if not net_pos_obj:
+                        missing.append(net_pos_name)
+                    if not net_neg_obj:
+                        missing.append(net_neg_name)
+                    return {
+                        "success": False,
+                        "message": f"Nets not found: {', '.join(missing)}",
+                        "errorDetails": "Create the nets first with add_net",
+                    }
+
+                pair_center_offset_nm = int(pair_idx * pair_pitch_nm - total_bus_width_nm / 2)
+
+                for seg_idx in range(len(waypoints) - 1):
+                    wp_start = waypoints[seg_idx]
+                    wp_end = waypoints[seg_idx + 1]
+
+                    sx = wp_start["x"] * scale
+                    sy = wp_start["y"] * scale
+                    ex = wp_end["x"] * scale
+                    ey = wp_end["y"] * scale
+
+                    dx = ex - sx
+                    dy = ey - sy
+                    seg_len = math.sqrt(dx * dx + dy * dy)
+                    if seg_len <= 0:
+                        continue
+
+                    nx = -dy / seg_len
+                    ny = dx / seg_len
+
+                    pos_offset = pair_center_offset_nm + gap_nm // 2
+                    neg_offset = pair_center_offset_nm - gap_nm // 2
+
+                    pos_track = pcbnew.PCB_TRACK(self.board)
+                    pos_track.SetStart(pcbnew.VECTOR2I(
+                        int(sx + nx * pos_offset), int(sy + ny * pos_offset)))
+                    pos_track.SetEnd(pcbnew.VECTOR2I(
+                        int(ex + nx * pos_offset), int(ey + ny * pos_offset)))
+                    pos_track.SetLayer(layer_id)
+                    pos_track.SetWidth(trace_width_nm)
+                    pos_track.SetNet(net_pos_obj)
+                    self.board.Add(pos_track)
+
+                    neg_track = pcbnew.PCB_TRACK(self.board)
+                    neg_track.SetStart(pcbnew.VECTOR2I(
+                        int(sx + nx * neg_offset), int(sy + ny * neg_offset)))
+                    neg_track.SetEnd(pcbnew.VECTOR2I(
+                        int(ex + nx * neg_offset), int(ey + ny * neg_offset)))
+                    neg_track.SetLayer(layer_id)
+                    neg_track.SetWidth(trace_width_nm)
+                    neg_track.SetNet(net_neg_obj)
+                    self.board.Add(neg_track)
+
+                    total_segments += 2
+
+                routed_pairs.append({
+                    "netPos": net_pos_name,
+                    "netNeg": net_neg_name,
+                    "segments": len(waypoints) - 1,
+                })
+
+            return {
+                "success": True,
+                "message": f"Routed {num_pairs} differential pairs with {total_segments} trace segments",
+                "pairs": routed_pairs,
+                "totalSegments": total_segments,
+                "layer": layer,
+                "width": trace_width_nm / scale,
+                "gap": gap,
+                "interPairSpacing": inter_pair_spacing,
+            }
+
+        except Exception as e:
+            logger.error(f"Error routing differential pairs: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to route differential pairs",
+                "errorDetails": str(e),
+            }
+
+    def route_with_waypoints(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Route a trace through multiple waypoints with optional layer changes.
+
+        Creates connected trace segments through all waypoints.
+        If a waypoint specifies a different layer, a via is auto-inserted.
+        """
+        try:
+            if not self.board:
+                return {
+                    "success": False,
+                    "message": "No board is loaded",
+                    "errorDetails": "Load or create a board first",
+                }
+
+            waypoints = params.get("waypoints", [])
+            net = params.get("net")
+            width = params.get("width")
+            default_layer = params.get("layer", "F.Cu")
+
+            if len(waypoints) < 2:
+                return {
+                    "success": False,
+                    "message": "Need at least 2 waypoints",
+                    "errorDetails": "Provide at least start and end waypoints",
+                }
+
+            scale = 1000000
+
+            if width:
+                trace_width_nm = int(width * scale)
+            else:
+                trace_width_nm = self.board.GetDesignSettings().GetCurrentTrackWidth()
+
+            net_obj = None
+            if net:
+                netinfo = self.board.GetNetInfo()
+                nets_map = netinfo.NetsByName()
+                if nets_map.has_key(net):
+                    net_obj = nets_map[net]
+
+            segments_created = 0
+            vias_created = 0
+            current_layer = default_layer
+
+            for i in range(len(waypoints) - 1):
+                wp_start = waypoints[i]
+                wp_end = waypoints[i + 1]
+
+                start_layer = wp_start.get("layer", current_layer)
+                end_layer = wp_end.get("layer", start_layer)
+
+                start_point = self._get_point({"x": wp_start["x"], "y": wp_start["y"], "unit": "mm"})
+                end_point = self._get_point({"x": wp_end["x"], "y": wp_end["y"], "unit": "mm"})
+
+                if start_layer != end_layer:
+                    track1 = pcbnew.PCB_TRACK(self.board)
+                    track1.SetStart(start_point)
+                    track1.SetEnd(end_point)
+                    track1.SetLayer(self.board.GetLayerID(start_layer))
+                    track1.SetWidth(trace_width_nm)
+                    if net_obj:
+                        track1.SetNet(net_obj)
+                    self.board.Add(track1)
+                    segments_created += 1
+
+                    via = pcbnew.PCB_VIA(self.board)
+                    via.SetPosition(end_point)
+                    design_settings = self.board.GetDesignSettings()
+                    via.SetWidth(design_settings.GetCurrentViaSize())
+                    via.SetDrill(design_settings.GetCurrentViaDrill())
+                    from_id = self.board.GetLayerID(start_layer)
+                    to_id = self.board.GetLayerID(end_layer)
+                    via.SetLayerPair(from_id, to_id)
+                    if net_obj:
+                        via.SetNet(net_obj)
+                    self.board.Add(via)
+                    vias_created += 1
+
+                    current_layer = end_layer
+                else:
+                    track = pcbnew.PCB_TRACK(self.board)
+                    track.SetStart(start_point)
+                    track.SetEnd(end_point)
+                    track.SetLayer(self.board.GetLayerID(start_layer))
+                    track.SetWidth(trace_width_nm)
+                    if net_obj:
+                        track.SetNet(net_obj)
+                    self.board.Add(track)
+                    segments_created += 1
+
+                    current_layer = start_layer
+
+            return {
+                "success": True,
+                "message": f"Routed {segments_created} segments with {vias_created} vias through {len(waypoints)} waypoints",
+                "segments": segments_created,
+                "vias": vias_created,
+                "waypointCount": len(waypoints),
+                "net": net,
+                "width": trace_width_nm / scale,
+            }
+
+        except Exception as e:
+            logger.error(f"Error routing with waypoints: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to route with waypoints",
+                "errorDetails": str(e),
+            }
+
+    def route_pad_to_pad_smart(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Route between pads using L-shaped or Z-shaped paths.
+
+        Supports strategies: direct, L_horizontal_first, L_vertical_first, Z.
+        Auto-detects net from pads, auto-inserts vias for layer transitions.
+        """
+        try:
+            if not self.board:
+                return {
+                    "success": False,
+                    "message": "No board is loaded",
+                    "errorDetails": "Load or create a board first",
+                }
+
+            from_ref = params.get("fromRef")
+            from_pad = str(params.get("fromPad", ""))
+            to_ref = params.get("toRef")
+            to_pad = str(params.get("toPad", ""))
+            layer = params.get("layer", "F.Cu")
+            width = params.get("width")
+            net = params.get("net")
+            strategy = params.get("strategy", "L_horizontal_first")
+            z_midpoint = params.get("zMidpoint", 0.5)
+
+            if not from_ref or not from_pad or not to_ref or not to_pad:
+                return {
+                    "success": False,
+                    "message": "Missing parameters",
+                    "errorDetails": "fromRef, fromPad, toRef, toPad are all required",
+                }
+
+            scale = 1000000
+            footprints = {fp.GetReference(): fp for fp in self.board.GetFootprints()}
+
+            for ref in [from_ref, to_ref]:
+                if ref not in footprints:
+                    return {
+                        "success": False,
+                        "message": f"Component not found: {ref}",
+                        "errorDetails": f"'{ref}' does not exist on the board",
+                    }
+
+            def find_pad(ref: str, pad_num: str):
+                fp = footprints[ref]
+                for pad in fp.Pads():
+                    if pad.GetNumber() == pad_num:
+                        return pad
+                return None
+
+            start_pad = find_pad(from_ref, from_pad)
+            end_pad = find_pad(to_ref, to_pad)
+
+            if not start_pad:
+                return {
+                    "success": False,
+                    "message": f"Pad not found: {from_ref} pad {from_pad}",
+                    "errorDetails": f"Check pad number for {from_ref}",
+                }
+            if not end_pad:
+                return {
+                    "success": False,
+                    "message": f"Pad not found: {to_ref} pad {to_pad}",
+                    "errorDetails": f"Check pad number for {to_ref}",
+                }
+
+            start_pos = start_pad.GetPosition()
+            end_pos = end_pad.GetPosition()
+
+            if not net:
+                net = start_pad.GetNetname() or end_pad.GetNetname() or ""
+
+            fp_start = footprints[from_ref]
+            fp_end = footprints[to_ref]
+            start_layer = self.board.GetLayerName(fp_start.GetLayer())
+            end_layer = self.board.GetLayerName(fp_end.GetLayer())
+            copper_layers = {"F.Cu", "B.Cu"}
+            needs_via = (
+                start_layer in copper_layers
+                and end_layer in copper_layers
+                and start_layer != end_layer
+            )
+
+            sx = start_pos.x / scale
+            sy = start_pos.y / scale
+            ex = end_pos.x / scale
+            ey = end_pos.y / scale
+
+            if strategy == "direct":
+                waypoints_list = [
+                    {"x": sx, "y": sy},
+                    {"x": ex, "y": ey},
+                ]
+            elif strategy == "L_horizontal_first":
+                waypoints_list = [
+                    {"x": sx, "y": sy},
+                    {"x": ex, "y": sy},
+                    {"x": ex, "y": ey},
+                ]
+            elif strategy == "L_vertical_first":
+                waypoints_list = [
+                    {"x": sx, "y": sy},
+                    {"x": sx, "y": ey},
+                    {"x": ex, "y": ey},
+                ]
+            elif strategy == "Z":
+                mid_x = sx + (ex - sx) * z_midpoint
+                waypoints_list = [
+                    {"x": sx, "y": sy},
+                    {"x": mid_x, "y": sy},
+                    {"x": mid_x, "y": ey},
+                    {"x": ex, "y": ey},
+                ]
+            else:
+                return {
+                    "success": False,
+                    "message": f"Unknown strategy: {strategy}",
+                    "errorDetails": "Use direct, L_horizontal_first, L_vertical_first, or Z",
+                }
+
+            route_layer = layer if layer else start_layer
+
+            if needs_via:
+                via_wp = waypoints_list[-1]
+                via_x = via_wp["x"]
+                via_y = via_wp["y"]
+
+                for i in range(len(waypoints_list) - 1):
+                    wp_s = waypoints_list[i]
+                    wp_e = waypoints_list[i + 1]
+                    self.route_trace({
+                        "start": {"x": wp_s["x"], "y": wp_s["y"], "unit": "mm"},
+                        "end": {"x": wp_e["x"], "y": wp_e["y"], "unit": "mm"},
+                        "layer": start_layer, "width": width, "net": net,
+                    })
+
+                self.add_via({
+                    "position": {"x": via_x, "y": via_y, "unit": "mm"},
+                    "net": net,
+                    "from_layer": start_layer,
+                    "to_layer": end_layer,
+                })
+
+                return {
+                    "success": True,
+                    "message": f"Smart-routed {from_ref}.{from_pad} → {to_ref}.{to_pad} ({strategy}, via at {via_x:.2f},{via_y:.2f})",
+                    "strategy": strategy,
+                    "segments": len(waypoints_list) - 1,
+                    "via_added": True,
+                    "fromPad": {"ref": from_ref, "pad": from_pad, "x": sx, "y": sy},
+                    "toPad": {"ref": to_ref, "pad": to_pad, "x": ex, "y": ey},
+                    "waypoints": waypoints_list,
+                }
+            else:
+                for i in range(len(waypoints_list) - 1):
+                    wp_s = waypoints_list[i]
+                    wp_e = waypoints_list[i + 1]
+                    self.route_trace({
+                        "start": {"x": wp_s["x"], "y": wp_s["y"], "unit": "mm"},
+                        "end": {"x": wp_e["x"], "y": wp_e["y"], "unit": "mm"},
+                        "layer": route_layer, "width": width, "net": net,
+                    })
+
+                return {
+                    "success": True,
+                    "message": f"Smart-routed {from_ref}.{from_pad} → {to_ref}.{to_pad} ({strategy})",
+                    "strategy": strategy,
+                    "segments": len(waypoints_list) - 1,
+                    "via_added": False,
+                    "fromPad": {"ref": from_ref, "pad": from_pad, "x": sx, "y": sy},
+                    "toPad": {"ref": to_ref, "pad": to_pad, "x": ex, "y": ey},
+                    "waypoints": waypoints_list,
+                }
+
+        except Exception as e:
+            logger.error(f"Error in route_pad_to_pad_smart: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to smart-route pad to pad",
+                "errorDetails": str(e),
+            }
+
+    def autoroute_advanced(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Multi-seed autoroute using Freerouting, picking the best result by DRC score.
+
+        Runs Freerouting N times with different random seeds, scores each by
+        DRC violation count, and keeps the best result.
+        """
+        try:
+            if not self.board:
+                return {
+                    "success": False,
+                    "message": "No board is loaded",
+                    "errorDetails": "Load or create a board first",
+                }
+
+            from commands.freerouting import FreeroutingCommands
+
+            seeds = params.get("seeds", 3)
+            max_passes = params.get("maxPasses", 20)
+            timeout = params.get("timeout", 300)
+            board_path = params.get("boardPath") or self.board.GetFileName()
+            jar_path = params.get("freeroutingJar")
+
+            if not board_path:
+                return {
+                    "success": False,
+                    "message": "No board file path available",
+                    "errorDetails": "Provide boardPath or open a project first",
+                }
+
+            seeds = max(1, min(seeds, 10))
+
+            self.board.Save(board_path)
+
+            fr = FreeroutingCommands(board=None)
+            board_dir = os.path.dirname(board_path)
+            board_stem = os.path.splitext(os.path.basename(board_path))[0]
+
+            import shutil as _shutil
+            import tempfile
+
+            results = []
+            best_idx = -1
+            best_violations = float("inf")
+
+            for seed_idx in range(seeds):
+                work_dir = tempfile.mkdtemp(prefix=f"autoroute_seed{seed_idx}_")
+                work_board = os.path.join(work_dir, os.path.basename(board_path))
+                _shutil.copy2(board_path, work_board)
+
+                try:
+                    seed_board = pcbnew.LoadBoard(work_board)
+                except Exception as e:
+                    results.append({
+                        "seed": seed_idx,
+                        "success": False,
+                        "error": f"Failed to load board copy: {e}",
+                    })
+                    continue
+
+                fr_seed = FreeroutingCommands(board=seed_board)
+                fr_params = {
+                    "boardPath": work_board,
+                    "maxPasses": max_passes,
+                    "timeout": timeout,
+                }
+                if jar_path:
+                    fr_params["freeroutingJar"] = jar_path
+
+                result = fr_seed.autoroute(fr_params)
+
+                if not result.get("success"):
+                    results.append({
+                        "seed": seed_idx,
+                        "success": False,
+                        "error": result.get("errorDetails", result.get("message", "Unknown error")),
+                    })
+                    continue
+
+                violation_count = 0
+                drc_json = os.path.join(work_dir, f"{board_stem}_drc.json")
+                try:
+                    import subprocess as _subprocess
+                    kicad_cli = _shutil.which("kicad-cli")
+                    if kicad_cli:
+                        _subprocess.run(
+                            [kicad_cli, "pcb", "drc",
+                             "--output", drc_json,
+                             "--format", "json",
+                             "--severity-all",
+                             work_board],
+                            capture_output=True, text=True, timeout=60,
+                        )
+                        if os.path.isfile(drc_json):
+                            import json
+                            with open(drc_json, "r") as f:
+                                drc_data = json.load(f)
+                            violation_count = len(drc_data.get("violations", []))
+                except Exception as drc_err:
+                    logger.warning(f"DRC scoring failed for seed {seed_idx}: {drc_err}")
+                    violation_count = 0
+
+                track_count = result.get("board_stats", {}).get("tracks", 0)
+                via_count = result.get("board_stats", {}).get("vias", 0)
+
+                seed_result = {
+                    "seed": seed_idx,
+                    "success": True,
+                    "violations": violation_count,
+                    "tracks": track_count,
+                    "vias": via_count,
+                    "elapsed": result.get("elapsed_seconds", 0),
+                    "boardPath": work_board,
+                }
+                results.append(seed_result)
+
+                if violation_count < best_violations:
+                    best_violations = violation_count
+                    best_idx = seed_idx
+
+            if best_idx < 0:
+                return {
+                    "success": False,
+                    "message": "All autoroute seeds failed",
+                    "errorDetails": "No seed produced a valid result",
+                    "seeds": results,
+                }
+
+            best_result = results[best_idx]
+            best_board_path = best_result["boardPath"]
+
+            try:
+                _shutil.copy2(best_board_path, board_path)
+                self.board = pcbnew.LoadBoard(board_path)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "message": "Failed to apply best result",
+                    "errorDetails": str(e),
+                    "seeds": results,
+                }
+
+            for r in results:
+                work_path = r.get("boardPath", "")
+                work_dir = os.path.dirname(work_path) if work_path else ""
+                if work_dir and work_dir != board_dir and os.path.isdir(work_dir):
+                    try:
+                        _shutil.rmtree(work_dir)
+                    except Exception:
+                        pass
+
+            return {
+                "success": True,
+                "message": f"Best result from seed {best_idx} with {best_violations} DRC violations",
+                "bestSeed": best_idx,
+                "bestViolations": best_violations,
+                "bestTracks": best_result.get("tracks", 0),
+                "bestVias": best_result.get("vias", 0),
+                "totalSeeds": seeds,
+                "seeds": results,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in autoroute_advanced: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to run advanced autoroute",
+                "errorDetails": str(e),
+            }
+
     def _get_point(self, point_spec: Dict[str, Any]) -> pcbnew.VECTOR2I:
         """Convert point specification to KiCAD point"""
         if "x" in point_spec and "y" in point_spec:

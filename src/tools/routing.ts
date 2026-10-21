@@ -349,6 +349,124 @@ export function registerRoutingTools(
     },
   );
 
+  // Route differential pairs (bus) tool
+  server.tool(
+    "route_differential_pairs",
+    "Route multiple differential pairs as a bus with waypoints. Handles USB (2 pairs), HDMI (4 TMDS pairs), etc. Each pair has a positive and negative net. Traces follow waypoints with configurable inter-pair spacing. Each segment between waypoints is a straight trace with perpendicular offset recalculated per segment.",
+    {
+      pairs: z
+        .array(
+          z.object({
+            netPos: z.string().describe("Positive net name (e.g. 'USB_D+')"),
+            netNeg: z.string().describe("Negative net name (e.g. 'USB_D-')"),
+          }),
+        )
+        .describe("List of differential pairs to route"),
+      waypoints: z
+        .array(z.object({ x: z.number(), y: z.number() }))
+        .describe("Ordered XY waypoints (mm) defining the bus path — minimum 2 (start and end)"),
+      layer: z.string().optional().describe("PCB layer (default: F.Cu)"),
+      width: z.number().optional().describe("Trace width in mm (default: board default)"),
+      gap: z.number().optional().describe("Gap between pos/neg traces within a pair in mm (default: 0.2)"),
+      interPairSpacing: z
+        .number()
+        .optional()
+        .describe("Center-to-center spacing between adjacent pairs in mm (default: 0.5)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("route_differential_pairs", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  // Route with waypoints tool
+  server.tool(
+    "route_with_waypoints",
+    "Route a trace through multiple waypoints with optional layer changes. Creates connected trace segments through all waypoints. If a waypoint specifies a different layer than the previous one, a via is automatically inserted at that waypoint.",
+    {
+      waypoints: z
+        .array(
+          z.object({
+            x: z.number().describe("X coordinate in mm"),
+            y: z.number().describe("Y coordinate in mm"),
+            layer: z
+              .string()
+              .optional()
+              .describe("Layer at this waypoint — if different from previous, a via is inserted"),
+          }),
+        )
+        .describe("Ordered waypoints — minimum 2"),
+      net: z.string().optional().describe("Net name"),
+      width: z.number().optional().describe("Trace width in mm (default: board default)"),
+      layer: z.string().optional().describe("Starting layer (default: F.Cu)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("route_with_waypoints", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  // Smart pad-to-pad routing tool
+  server.tool(
+    "route_pad_to_pad_smart",
+    "Route between pads using L-shaped or Z-shaped paths instead of straight lines. Supports strategies: 'direct' (straight line), 'L_horizontal_first' (go horizontal then vertical), 'L_vertical_first' (go vertical then horizontal), 'Z' (horizontal-diagonal-horizontal with configurable midpoint). Auto-detects net and inserts vias for layer transitions.",
+    {
+      fromRef: z.string().describe("Source component reference (e.g. 'U1')"),
+      fromPad: z.union([z.string(), z.number()]).describe("Source pad number"),
+      toRef: z.string().describe("Target component reference (e.g. 'U2')"),
+      toPad: z.union([z.string(), z.number()]).describe("Target pad number"),
+      strategy: z
+        .enum(["direct", "L_horizontal_first", "L_vertical_first", "Z"])
+        .optional()
+        .describe("Routing strategy (default: L_horizontal_first)"),
+      zMidpoint: z
+        .number()
+        .optional()
+        .describe("For Z strategy: fractional position (0-1) of the horizontal break (default: 0.5)"),
+      layer: z.string().optional().describe("PCB layer (default: F.Cu)"),
+      width: z.number().optional().describe("Trace width in mm"),
+      net: z.string().optional().describe("Net name override (default: auto-detected from pad)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("route_pad_to_pad_smart", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  // Advanced autoroute tool
+  server.tool(
+    "autoroute_advanced",
+    "Multi-seed autoroute using Freerouting. Runs Freerouting multiple times with different random seeds, scores each result by DRC violation count, and keeps the best one. Requires Freerouting JAR and Java 21+ or Docker.",
+    {
+      seeds: z
+        .number()
+        .optional()
+        .describe("Number of seeds to try (1-10, default: 3)"),
+      maxPasses: z
+        .number()
+        .optional()
+        .describe("Max routing passes per seed (default: 20)"),
+      timeout: z
+        .number()
+        .optional()
+        .describe("Timeout per seed in seconds (default: 300)"),
+      boardPath: z.string().optional().describe("Board file path (default: current board)"),
+      freeroutingJar: z.string().optional().describe("Path to freerouting.jar"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("autoroute_advanced", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
   // Copy routing pattern tool
   server.tool(
     "copy_routing_pattern",
