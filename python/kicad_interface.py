@@ -233,6 +233,7 @@ try:
     from commands.placement import PlacementCommands
     from commands.dfm_checker import DFMCheckerCommands
     from commands.board_setup import BoardSetupCommands
+    from commands.net_analysis import NetAnalysisCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -285,6 +286,7 @@ class KiCADInterface:
         self.placement_commands = PlacementCommands(self.board)
         self.dfm_checker_commands = DFMCheckerCommands(self.board)
         self.board_setup_commands = BoardSetupCommands(self.board)
+        self.net_analysis_commands = NetAnalysisCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -401,6 +403,11 @@ class KiCADInterface:
             "auto_setup_board": self.board_setup_commands.auto_setup_board,
             "list_stackups": self.board_setup_commands.list_stackups,
             "list_signal_types": self.board_setup_commands.list_signal_types,
+
+            "trace_net": self.net_analysis_commands.trace_net,
+            "find_longest_ratsnest": self.net_analysis_commands.find_longest_ratsnest,
+            "find_bottleneck_traces": self.net_analysis_commands.find_bottleneck_traces,
+            "net_length_report": self.net_analysis_commands.net_length_report,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -679,6 +686,7 @@ class KiCADInterface:
         self.placement_commands.board = self.board
         self.dfm_checker_commands.board = self.board
         self.board_setup_commands.board = self.board
+        self.net_analysis_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
