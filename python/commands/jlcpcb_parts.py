@@ -385,48 +385,169 @@ class JLCPCBPartsManager:
         Returns:
             List of possible KiCAD footprint library refs
         """
-        # Load mapping from JSON file or use defaults
         mappings = {
+            # Chip resistors / capacitors / inductors / LEDs
+            "0201": [
+                "Resistor_SMD:R_0201_0603Metric",
+                "Capacitor_SMD:C_0201_0603Metric",
+            ],
             "0402": [
                 "Resistor_SMD:R_0402_1005Metric",
                 "Capacitor_SMD:C_0402_1005Metric",
-                "LED_SMD:LED_0402_1005Metric"
+                "Inductor_SMD:L_0402_1005Metric",
+                "LED_SMD:LED_0402_1005Metric",
             ],
             "0603": [
                 "Resistor_SMD:R_0603_1608Metric",
                 "Capacitor_SMD:C_0603_1608Metric",
-                "LED_SMD:LED_0603_1608Metric"
+                "Inductor_SMD:L_0603_1608Metric",
+                "LED_SMD:LED_0603_1608Metric",
             ],
             "0805": [
                 "Resistor_SMD:R_0805_2012Metric",
-                "Capacitor_SMD:C_0805_2012Metric"
+                "Capacitor_SMD:C_0805_2012Metric",
+                "Inductor_SMD:L_0805_2012Metric",
+                "LED_SMD:LED_0805_2012Metric",
             ],
             "1206": [
                 "Resistor_SMD:R_1206_3216Metric",
-                "Capacitor_SMD:C_1206_3216Metric"
+                "Capacitor_SMD:C_1206_3216Metric",
+                "Inductor_SMD:L_1206_3216Metric",
             ],
+            "1210": [
+                "Resistor_SMD:R_1210_3225Metric",
+                "Capacitor_SMD:C_1210_3225Metric",
+            ],
+            "1812": [
+                "Resistor_SMD:R_1812_4532Metric",
+                "Capacitor_SMD:C_1812_4532Metric",
+            ],
+            "2010": [
+                "Resistor_SMD:R_2010_5025Metric",
+            ],
+            "2512": [
+                "Resistor_SMD:R_2512_6332Metric",
+                "Capacitor_SMD:C_2512_6332Metric",
+            ],
+            # SOT packages
             "SOT-23": [
                 "Package_TO_SOT_SMD:SOT-23",
-                "Package_TO_SOT_SMD:SOT-23-3"
+                "Package_TO_SOT_SMD:SOT-23-3",
             ],
-            "SOT-23-5": [
-                "Package_TO_SOT_SMD:SOT-23-5"
-            ],
-            "SOT-23-6": [
-                "Package_TO_SOT_SMD:SOT-23-6"
-            ],
-            "SOIC-8": [
-                "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"
-            ],
-            "SOIC-16": [
-                "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm"
-            ],
-            "QFN-20": [
-                "Package_DFN_QFN:QFN-20-1EP_4x4mm_P0.5mm_EP2.5x2.5mm"
-            ],
-            "QFN-32": [
-                "Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm"
-            ]
+            "SOT-23-5": ["Package_TO_SOT_SMD:SOT-23-5"],
+            "SOT-23-6": ["Package_TO_SOT_SMD:SOT-23-6"],
+            "SOT-323": ["Package_TO_SOT_SMD:SOT-323_SC-70"],
+            "SC-70": ["Package_TO_SOT_SMD:SOT-323_SC-70"],
+            "SC-70-5": ["Package_TO_SOT_SMD:SOT-353_SC-70-5"],
+            "SC-70-6": ["Package_TO_SOT_SMD:SOT-363_SC-70-6"],
+            "SOT-89": ["Package_TO_SOT_SMD:SOT-89-3"],
+            "SOT-223": ["Package_TO_SOT_SMD:SOT-223-3_TabPin2"],
+            "SOT-363": ["Package_TO_SOT_SMD:SOT-363_SC-70-6"],
+            "SOT-523": ["Package_TO_SOT_SMD:SOT-523"],
+            "SOT-563": ["Package_TO_SOT_SMD:SOT-563"],
+            "SOT-666": ["Package_TO_SOT_SMD:SOT-666"],
+            "SOT-143": ["Package_TO_SOT_SMD:SOT-143"],
+            # SOIC / SOP
+            "SOIC-8": ["Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"],
+            "SOP-8": ["Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"],
+            "SOIC-14": ["Package_SO:SOIC-14_3.9x8.7mm_P1.27mm"],
+            "SOIC-16": ["Package_SO:SOIC-16_3.9x9.9mm_P1.27mm"],
+            "SOIC-16W": ["Package_SO:SOIC-16W_7.5x10.3mm_P1.27mm"],
+            "SOIC-18": ["Package_SO:SOIC-18W_7.5x11.6mm_P1.27mm"],
+            "SOIC-20": ["Package_SO:SOIC-20W_7.5x12.8mm_P1.27mm"],
+            "SOIC-24": ["Package_SO:SOIC-24W_7.5x15.4mm_P1.27mm"],
+            "SOIC-28": ["Package_SO:SOIC-28W_7.5x18.7mm_P1.27mm"],
+            # SSOP / TSSOP / MSOP
+            "SSOP-8": ["Package_SO:SSOP-8_3.95x5.21mm_P1.27mm"],
+            "SSOP-16": ["Package_SO:SSOP-16_5.3x6.2mm_P0.65mm"],
+            "SSOP-20": ["Package_SO:SSOP-20_5.3x7.2mm_P0.65mm"],
+            "SSOP-24": ["Package_SO:SSOP-24_5.3x8.2mm_P0.65mm"],
+            "SSOP-28": ["Package_SO:SSOP-28_5.3x10.2mm_P0.65mm"],
+            "TSSOP-8": ["Package_SO:TSSOP-8_3x3mm_P0.65mm"],
+            "TSSOP-14": ["Package_SO:TSSOP-14_4.4x5mm_P0.65mm"],
+            "TSSOP-16": ["Package_SO:TSSOP-16_4.4x5mm_P0.65mm"],
+            "TSSOP-20": ["Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm"],
+            "TSSOP-24": ["Package_SO:TSSOP-24_4.4x7.8mm_P0.65mm"],
+            "TSSOP-28": ["Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm"],
+            "MSOP-8": ["Package_SO:MSOP-8_3x3mm_P0.65mm"],
+            "MSOP-10": ["Package_SO:MSOP-10_3x3mm_P0.5mm"],
+            # QFN / DFN
+            "QFN-8": ["Package_DFN_QFN:QFN-8-1EP_2x2mm_P0.5mm_EP0.9x0.9mm"],
+            "QFN-12": ["Package_DFN_QFN:QFN-12-1EP_3x3mm_P0.5mm_EP1.65x1.65mm"],
+            "QFN-16": ["Package_DFN_QFN:QFN-16-1EP_3x3mm_P0.5mm_EP1.45x1.45mm"],
+            "QFN-20": ["Package_DFN_QFN:QFN-20-1EP_4x4mm_P0.5mm_EP2.5x2.5mm"],
+            "QFN-24": ["Package_DFN_QFN:QFN-24-1EP_4x4mm_P0.5mm_EP2.45x2.45mm"],
+            "QFN-28": ["Package_DFN_QFN:QFN-28-1EP_5x5mm_P0.5mm_EP3.35x3.35mm"],
+            "QFN-32": ["Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm"],
+            "QFN-36": ["Package_DFN_QFN:QFN-36-1EP_6x6mm_P0.5mm_EP4.1x4.1mm"],
+            "QFN-40": ["Package_DFN_QFN:QFN-40-1EP_6x6mm_P0.5mm_EP4.1x4.1mm"],
+            "QFN-44": ["Package_DFN_QFN:QFN-44-1EP_7x7mm_P0.5mm_EP5.15x5.15mm"],
+            "QFN-48": ["Package_DFN_QFN:QFN-48-1EP_7x7mm_P0.5mm_EP5.15x5.15mm"],
+            "QFN-56": ["Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP5.6x5.6mm"],
+            "QFN-64": ["Package_DFN_QFN:QFN-64-1EP_9x9mm_P0.5mm_EP5.4x5.4mm"],
+            "DFN-6": ["Package_DFN_QFN:DFN-6-1EP_2x2mm_P0.65mm_EP1x1.6mm"],
+            "DFN-8": ["Package_DFN_QFN:DFN-8-1EP_3x2mm_P0.5mm_EP1.36x1.46mm"],
+            "DFN-10": ["Package_DFN_QFN:DFN-10-1EP_3x3mm_P0.5mm_EP1.55x2.48mm"],
+            "DFN-12": ["Package_DFN_QFN:DFN-12-1EP_3x4mm_P0.5mm_EP1.7x3.3mm"],
+            # QFP / LQFP / TQFP
+            "LQFP-32": ["Package_QFP:LQFP-32_7x7mm_P0.8mm"],
+            "LQFP-44": ["Package_QFP:LQFP-44_10x10mm_P0.8mm"],
+            "LQFP-48": ["Package_QFP:LQFP-48_7x7mm_P0.5mm"],
+            "LQFP-64": ["Package_QFP:LQFP-64_10x10mm_P0.5mm"],
+            "LQFP-80": ["Package_QFP:LQFP-80_12x12mm_P0.5mm"],
+            "LQFP-100": ["Package_QFP:LQFP-100_14x14mm_P0.5mm"],
+            "LQFP-128": ["Package_QFP:LQFP-128_14x14mm_P0.4mm"],
+            "LQFP-144": ["Package_QFP:LQFP-144_20x20mm_P0.5mm"],
+            "LQFP-176": ["Package_QFP:LQFP-176_24x24mm_P0.5mm"],
+            "LQFP-208": ["Package_QFP:LQFP-208_28x28mm_P0.5mm"],
+            "TQFP-32": ["Package_QFP:TQFP-32_7x7mm_P0.8mm"],
+            "TQFP-44": ["Package_QFP:TQFP-44_10x10mm_P0.8mm"],
+            "TQFP-48": ["Package_QFP:TQFP-48_7x7mm_P0.5mm"],
+            "TQFP-64": ["Package_QFP:TQFP-64_10x10mm_P0.5mm"],
+            "TQFP-100": ["Package_QFP:TQFP-100_14x14mm_P0.5mm"],
+            # BGA
+            "BGA-48": ["Package_BGA:BGA-48_6x8_5.0x7.0mm_P0.8mm"],
+            "BGA-100": ["Package_BGA:BGA-100_10x10_9.0x9.0mm_P0.8mm"],
+            "BGA-144": ["Package_BGA:BGA-144_12x12_10.0x10.0mm_P0.8mm"],
+            "BGA-169": ["Package_BGA:BGA-169_13x13_11.0x11.0mm_P0.8mm"],
+            "BGA-196": ["Package_BGA:BGA-196_14x14_12.0x12.0mm_P0.8mm"],
+            "BGA-256": ["Package_BGA:BGA-256_16x16_14.0x14.0mm_P0.8mm"],
+            # TO packages (through-hole and SMD)
+            "TO-92": ["Package_TO_SOT_THT:TO-92_Inline"],
+            "TO-220": ["Package_TO_SOT_THT:TO-220-3_Vertical"],
+            "TO-220-3": ["Package_TO_SOT_THT:TO-220-3_Vertical"],
+            "TO-220F": ["Package_TO_SOT_THT:TO-220F-3_Vertical"],
+            "TO-252": ["Package_TO_SOT_SMD:TO-252-2"],
+            "DPAK": ["Package_TO_SOT_SMD:TO-252-2"],
+            "TO-263": ["Package_TO_SOT_SMD:TO-263-3_TabPin2"],
+            "D2PAK": ["Package_TO_SOT_SMD:TO-263-3_TabPin2"],
+            "D-PAK": ["Package_TO_SOT_SMD:TO-252-2"],
+            "TO-247": ["Package_TO_SOT_THT:TO-247-3_Vertical"],
+            "SOD-123": ["Diode_SMD:D_SOD-123"],
+            "SOD-323": ["Diode_SMD:D_SOD-323"],
+            "SOD-523": ["Diode_SMD:D_SOD-523"],
+            "SOD-123F": ["Diode_SMD:D_SOD-123F"],
+            "SOD-128": ["Diode_SMD:D_SOD-128"],
+            "SMA": ["Diode_SMD:D_SMA"],
+            "SMB": ["Diode_SMD:D_SMB"],
+            "SMC": ["Diode_SMD:D_SMC"],
+            # Connectors (common JLCPCB connectors)
+            "USB-C": ["Connector_USB:USB_C_Receptacle_XKB_U262-16XN-4BVC11"],
+            "USB-A": ["Connector_USB:USB_A_Stewart_SS-52100-001"],
+            "USB-MICRO": ["Connector_USB:USB_Micro-B_Molex-105017-0001"],
+            "USB-MINI": ["Connector_USB:USB_Mini-B_Lumberg_2486_01_Horizontal"],
+            # Crystal / Oscillator packages
+            "HC49": ["Crystal:Crystal_HC49-4H_Vertical"],
+            "2012": ["Crystal:Crystal_SMD_2012-2Pin_2.0x1.2mm"],
+            "3215": ["Crystal:Crystal_SMD_3215-2Pin_3.2x1.5mm"],
+            "5032": ["Crystal:Crystal_SMD_5032-2Pin_5.0x3.2mm"],
+            "7050": ["Crystal:Crystal_SMD_7050-4Pin_7.0x5.0mm"],
+            # Electrolytic capacitors
+            "CAP-D4": ["Capacitor_SMD:CP_Elec_4x5.4"],
+            "CAP-D5": ["Capacitor_SMD:CP_Elec_5x5.4"],
+            "CAP-D6.3": ["Capacitor_SMD:CP_Elec_6.3x5.4"],
+            "CAP-D8": ["Capacitor_SMD:CP_Elec_8x10.5"],
+            "CAP-D10": ["Capacitor_SMD:CP_Elec_10x10.5"],
         }
 
         # Normalize package name

@@ -227,6 +227,8 @@ try:
     from commands.footprint import FootprintCreator
     from commands.symbol_creator import SymbolCreator
     from commands.freerouting import FreeroutingCommands
+    from commands.calculators import CalculatorCommands
+    from commands.decoupling import DecouplingCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -273,6 +275,8 @@ class KiCADInterface:
         self.routing_commands = RoutingCommands(self.board)
         self.freerouting_commands = FreeroutingCommands(self.board)
         self.design_rule_commands = DesignRuleCommands(self.board, self.routing_commands)
+        self.calculator_commands = CalculatorCommands(self.board)
+        self.decoupling_commands = DecouplingCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -340,6 +344,10 @@ class KiCADInterface:
             "create_netclass": self.routing_commands.create_netclass,
             "add_copper_pour": self.routing_commands.add_copper_pour,
             "route_differential_pair": self.routing_commands.route_differential_pair,
+            "route_differential_pairs": self.routing_commands.route_differential_pairs,
+            "route_with_waypoints": self.routing_commands.route_with_waypoints,
+            "route_pad_to_pad_smart": self.routing_commands.route_pad_to_pad_smart,
+            "autoroute_advanced": self.routing_commands.autoroute_advanced,
             "add_zone": self.routing_commands.add_copper_pour,  # add_zone is alias for add_copper_pour
             "refill_zones": self._handle_refill_zones,
             # Design rule commands
@@ -353,6 +361,18 @@ class KiCADInterface:
             "check_clearance": self.design_rule_commands.check_clearance,
             "apply_manufacturing_preset": self.design_rule_commands.apply_manufacturing_preset,
             "validate_for_manufacturing": self.design_rule_commands.validate_for_manufacturing,
+            # Calculator commands
+            "calculate_trace_width": self.calculator_commands.calculate_trace_width,
+            "calculate_via_current": self.calculator_commands.calculate_via_current,
+            "calculate_impedance": self.calculator_commands.calculate_impedance,
+            "solve_trace_width_for_impedance": self.calculator_commands.solve_trace_width_for_impedance,
+            "calculate_voltage_drop": self.calculator_commands.calculate_voltage_drop,
+            "suggest_netclass_params": self.calculator_commands.suggest_netclass_params,
+            "auto_create_power_netclasses": self.calculator_commands.auto_create_power_netclasses,
+            # Decoupling intelligence commands
+            "analyze_decoupling": self.decoupling_commands.analyze_decoupling,
+            "analyze_decoupling_placement": self.decoupling_commands.analyze_decoupling_placement,
+            "suggest_decoupling": self.decoupling_commands.suggest_decoupling,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -625,6 +645,8 @@ class KiCADInterface:
         self.design_rule_commands._routing_commands = self.routing_commands
         self.export_commands.board = self.board
         self.freerouting_commands.board = self.board
+        self.calculator_commands.board = self.board
+        self.decoupling_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
