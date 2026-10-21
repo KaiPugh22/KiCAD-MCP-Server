@@ -35,6 +35,7 @@ import { registerPlacementTools } from "./tools/placement.js";
 import { registerDFMCheckerTools } from "./tools/dfm_checker.js";
 import { registerBoardSetupTools } from "./tools/board_setup.js";
 import { registerNetAnalysisTools } from "./tools/net_analysis.js";
+import { registerLengthMatchingTools } from "./tools/length_matching.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -269,6 +270,7 @@ export class KiCADMcpServer {
     registerDFMCheckerTools(this.server, this.callKicadScript.bind(this));
     registerBoardSetupTools(this.server, this.callKicadScript.bind(this));
     registerNetAnalysisTools(this.server, this.callKicadScript.bind(this));
+    registerLengthMatchingTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));

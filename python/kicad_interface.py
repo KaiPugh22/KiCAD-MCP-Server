@@ -234,6 +234,7 @@ try:
     from commands.dfm_checker import DFMCheckerCommands
     from commands.board_setup import BoardSetupCommands
     from commands.net_analysis import NetAnalysisCommands
+    from commands.length_matching import LengthMatchingCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -287,6 +288,7 @@ class KiCADInterface:
         self.dfm_checker_commands = DFMCheckerCommands(self.board)
         self.board_setup_commands = BoardSetupCommands(self.board)
         self.net_analysis_commands = NetAnalysisCommands(self.board)
+        self.length_matching_commands = LengthMatchingCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -408,6 +410,11 @@ class KiCADInterface:
             "find_longest_ratsnest": self.net_analysis_commands.find_longest_ratsnest,
             "find_bottleneck_traces": self.net_analysis_commands.find_bottleneck_traces,
             "net_length_report": self.net_analysis_commands.net_length_report,
+
+            "measure_net_lengths": self.length_matching_commands.measure_net_lengths,
+            "check_length_matching": self.length_matching_commands.check_length_matching,
+            "auto_detect_bus_groups": self.length_matching_commands.auto_detect_bus_groups,
+            "add_serpentine": self.length_matching_commands.add_serpentine,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -687,6 +694,7 @@ class KiCADInterface:
         self.dfm_checker_commands.board = self.board
         self.board_setup_commands.board = self.board
         self.net_analysis_commands.board = self.board
+        self.length_matching_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
