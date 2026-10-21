@@ -232,6 +232,7 @@ try:
     from commands.power_integrity import PowerIntegrityCommands
     from commands.placement import PlacementCommands
     from commands.dfm_checker import DFMCheckerCommands
+    from commands.board_setup import BoardSetupCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -283,6 +284,7 @@ class KiCADInterface:
         self.power_integrity_commands = PowerIntegrityCommands(self.board)
         self.placement_commands = PlacementCommands(self.board)
         self.dfm_checker_commands = DFMCheckerCommands(self.board)
+        self.board_setup_commands = BoardSetupCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -395,6 +397,10 @@ class KiCADInterface:
             "check_unconnected_nets": self.dfm_checker_commands.check_unconnected_nets,
             "check_silk_clearance": self.dfm_checker_commands.check_silk_clearance,
             "list_fab_presets": self.dfm_checker_commands.list_fab_presets,
+
+            "auto_setup_board": self.board_setup_commands.auto_setup_board,
+            "list_stackups": self.board_setup_commands.list_stackups,
+            "list_signal_types": self.board_setup_commands.list_signal_types,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -672,6 +678,7 @@ class KiCADInterface:
         self.power_integrity_commands.board = self.board
         self.placement_commands.board = self.board
         self.dfm_checker_commands.board = self.board
+        self.board_setup_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):

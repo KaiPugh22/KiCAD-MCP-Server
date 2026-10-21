@@ -33,6 +33,7 @@ import { registerBridgeTools } from "./tools/bridge.js";
 import { registerPowerIntegrityTools } from "./tools/power_integrity.js";
 import { registerPlacementTools } from "./tools/placement.js";
 import { registerDFMCheckerTools } from "./tools/dfm_checker.js";
+import { registerBoardSetupTools } from "./tools/board_setup.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -265,6 +266,7 @@ export class KiCADMcpServer {
     registerPowerIntegrityTools(this.server, this.callKicadScript.bind(this));
     registerPlacementTools(this.server, this.callKicadScript.bind(this));
     registerDFMCheckerTools(this.server, this.callKicadScript.bind(this));
+    registerBoardSetupTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));
