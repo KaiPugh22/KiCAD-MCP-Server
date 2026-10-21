@@ -167,9 +167,15 @@ def convert_to_mcp_format():
         subcategory = row_dict.get('subcategory') or row_dict.get('Second Category') or ''
         datasheet = row_dict.get('datasheet') or row_dict.get('url') or ''
 
-        # Library type
-        is_basic = row_dict.get('basic') or row_dict.get('is_basic') or row_dict.get('Basic')
-        is_preferred = row_dict.get('preferred') or row_dict.get('is_preferred') or row_dict.get('Preferred')
+        # Library type.
+        # NOTE: upstream jlcparts stores the tier in its OWN `library_type`
+        # column as 'base' (JLC Basic) vs 'expand' (everything else), with a
+        # separate `preferred` flag. There is no `basic` column -- looking for
+        # one silently classified all 7.1M parts as Extended, which is what the
+        # earlier builds of this DB did. Check 'base' first, then `preferred`.
+        src_lib = (row_dict.get('library_type') or '').lower()
+        is_basic = src_lib == 'base' or row_dict.get('basic') or row_dict.get('is_basic')
+        is_preferred = row_dict.get('preferred') or row_dict.get('is_preferred')
         if is_basic:
             lib_type = 'Basic'
         elif is_preferred:

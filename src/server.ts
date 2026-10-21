@@ -36,6 +36,10 @@ import { registerDFMCheckerTools } from "./tools/dfm_checker.js";
 import { registerBoardSetupTools } from "./tools/board_setup.js";
 import { registerNetAnalysisTools } from "./tools/net_analysis.js";
 import { registerLengthMatchingTools } from "./tools/length_matching.js";
+import { registerFreeroutingCloudTools } from "./tools/freerouting_cloud.js";
+import { registerAStarRouterTools } from "./tools/astar_router.js";
+import { registerDesignAnalysisTools } from "./tools/design_analysis.js";
+import { registerAutoPlaceTools } from "./tools/autoplace.js";
 
 // Import resource registration functions
 import { registerProjectResources } from "./resources/project.js";
@@ -271,6 +275,10 @@ export class KiCADMcpServer {
     registerBoardSetupTools(this.server, this.callKicadScript.bind(this));
     registerNetAnalysisTools(this.server, this.callKicadScript.bind(this));
     registerLengthMatchingTools(this.server, this.callKicadScript.bind(this));
+    registerFreeroutingCloudTools(this.server, this.callKicadScript.bind(this));
+    registerAStarRouterTools(this.server, this.callKicadScript.bind(this));
+    registerDesignAnalysisTools(this.server, this.callKicadScript.bind(this));
+    registerAutoPlaceTools(this.server, this.callKicadScript.bind(this));
 
     // Register all resources
     registerProjectResources(this.server, this.callKicadScript.bind(this));

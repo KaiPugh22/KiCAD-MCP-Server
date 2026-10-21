@@ -235,6 +235,10 @@ try:
     from commands.board_setup import BoardSetupCommands
     from commands.net_analysis import NetAnalysisCommands
     from commands.length_matching import LengthMatchingCommands
+    from commands.freerouting_cloud import FreeroutingCloudCommands
+    from commands.astar_router import AStarRouterCommands
+    from commands.design_analysis import DesignAnalysisCommands
+    from commands.autoplace import AutoplaceCommands
 
     logger.info("Successfully imported all command handlers")
 except ImportError as e:
@@ -289,6 +293,10 @@ class KiCADInterface:
         self.board_setup_commands = BoardSetupCommands(self.board)
         self.net_analysis_commands = NetAnalysisCommands(self.board)
         self.length_matching_commands = LengthMatchingCommands(self.board)
+        self.freerouting_cloud_commands = FreeroutingCloudCommands(self.board)
+        self.astar_router_commands = AStarRouterCommands(self.board)
+        self.design_analysis_commands = DesignAnalysisCommands(self.board)
+        self.autoplace_commands = AutoplaceCommands(self.board)
         self.export_commands = ExportCommands(self.board)
         self.library_commands = LibraryCommands(self.footprint_library)
         self._current_project_path: Optional[Path] = None  # set when boardPath is known
@@ -415,6 +423,29 @@ class KiCADInterface:
             "check_length_matching": self.length_matching_commands.check_length_matching,
             "auto_detect_bus_groups": self.length_matching_commands.auto_detect_bus_groups,
             "add_serpentine": self.length_matching_commands.add_serpentine,
+            # Freerouting Cloud API commands
+            "cloud_autoroute": self.freerouting_cloud_commands.cloud_autoroute,
+            "cloud_route_job": self.freerouting_cloud_commands.cloud_route_job,
+            "check_cloud_status": self.freerouting_cloud_commands.check_cloud_status,
+            # A* Router commands
+            "astar_route": self.astar_router_commands.astar_route,
+            "astar_route_differential": self.astar_router_commands.astar_route_differential,
+            "check_astar_router": self.astar_router_commands.check_astar_router,
+            "install_astar_router": self.astar_router_commands.install_astar_router,
+            # Design Analysis commands (kicad-happy)
+            "analyze_pcb": self.design_analysis_commands.analyze_pcb,
+            "analyze_schematic": self.design_analysis_commands.analyze_schematic,
+            "analyze_emc": self.design_analysis_commands.analyze_emc,
+            "analyze_thermal": self.design_analysis_commands.analyze_thermal,
+            "analyze_cross_domain": self.design_analysis_commands.analyze_cross_domain,
+            "check_analyzers": self.design_analysis_commands.check_analyzers,
+            "install_analyzers": self.design_analysis_commands.install_analyzers,
+            # Auto-placement commands (KiCad-Autoplace)
+            "auto_place": self.autoplace_commands.auto_place,
+            "auto_place_multi_seed": self.autoplace_commands.auto_place_multi_seed,
+            "placement_metrics": self.autoplace_commands.placement_metrics,
+            "check_autoplace": self.autoplace_commands.check_autoplace,
+            "install_autoplace": self.autoplace_commands.install_autoplace,
             # Export commands
             "export_gerber": self.export_commands.export_gerber,
             "export_pdf": self.export_commands.export_pdf,
@@ -697,6 +728,10 @@ class KiCADInterface:
         self.board_setup_commands.board = self.board
         self.net_analysis_commands.board = self.board
         self.length_matching_commands.board = self.board
+        self.freerouting_cloud_commands.board = self.board
+        self.astar_router_commands.board = self.board
+        self.design_analysis_commands.board = self.board
+        self.autoplace_commands.board = self.board
 
     # Schematic command handlers
     def _handle_create_schematic(self, params):
