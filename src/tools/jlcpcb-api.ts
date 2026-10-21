@@ -272,4 +272,85 @@ Useful for cost optimization and finding alternatives when parts are out of stoc
       };
     }
   );
+
+  // Parametric search
+  server.tool(
+    "parametric_search_jlcpcb",
+    `Smart parametric search for JLCPCB parts. Parses human queries like
+"100nF 0402" or "10k 0805 1%" into value+package+tolerance filters.
+Understands resistor/capacitor/inductor value notations.`,
+    {
+      query: z.string().optional()
+        .describe("Human-readable query (e.g. '100nF 0402', '10kohm 0603', '4.7uH')"),
+      value: z.string().optional()
+        .describe("Component value (e.g. '100', '4.7')"),
+      unit: z.string().optional()
+        .describe("Unit (pF/nF/uF, ohm/kohm/Mohm, nH/uH/mH)"),
+      package: z.string().optional()
+        .describe("Package (0402/0603/0805/1206, SOT-23, QFN-32, etc.)"),
+      tolerance: z.string().optional()
+        .describe("Tolerance filter (e.g. '1%', '5%')"),
+      voltage_rating: z.string().optional()
+        .describe("Voltage rating filter (e.g. '50V', '16V')"),
+      library_type: z.enum(["Basic", "Extended", "Preferred", "All"]).optional()
+        .describe("Library type filter"),
+      sort_by: z.enum(["price", "stock"]).optional()
+        .describe("Sort results by price or stock (default: price)"),
+      limit: z.number().optional()
+        .describe("Max results (default 20)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("parametric_search", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+  );
+
+  // BOM matching
+  server.tool(
+    "match_bom_to_jlcpcb",
+    `Match a Bill of Materials to JLCPCB parts. Takes component list with
+values and footprints, finds best JLCPCB matches. Prefers Basic parts
+(free assembly). Returns matched/unmatched counts and alternatives.`,
+    {
+      components: z.array(z.object({
+        reference: z.string().describe("Component reference (e.g. 'R1', 'C5', 'U3')"),
+        value: z.string().describe("Component value (e.g. '10k', '100nF', 'STM32F103')"),
+        footprint: z.string().optional().describe("KiCad footprint (e.g. 'Resistor_SMD:R_0402_1005Metric')"),
+        lcsc: z.string().optional().describe("Known LCSC number if already assigned"),
+      })).describe("List of BOM components to match"),
+      prefer_basic: z.boolean().optional()
+        .describe("Prefer Basic library parts for free assembly (default true)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("match_bom", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+  );
+
+  // Cost estimate
+  server.tool(
+    "estimate_jlcpcb_cost",
+    `Estimate JLCPCB assembly cost for a BOM. Calculates per-part costs,
+Extended part setup fees ($3 each), and total assembly estimate.`,
+    {
+      components: z.array(z.object({
+        reference: z.string(),
+        value: z.string(),
+        footprint: z.string().optional(),
+        lcsc: z.string().optional(),
+      })).describe("BOM components"),
+      quantity: z.number().optional()
+        .describe("PCB quantity for pricing (default 5)"),
+    },
+    async (args: any) => {
+      const result = await callKicadScript("cost_estimate", args);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    }
+  );
 }

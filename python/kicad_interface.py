@@ -473,6 +473,9 @@ class KiCADInterface:
             "suggest_jlcpcb_alternatives": self._handle_suggest_jlcpcb_alternatives,
             "get_rotation_correction": lambda params: self.jlcpcb_parts.get_rotation_correction(**params),
             "generate_corrected_cpl": lambda params: self.jlcpcb_parts.generate_corrected_cpl(**params),
+            "parametric_search": lambda params: self.jlcpcb_parts.parametric_search(**params),
+            "match_bom": lambda params: self.jlcpcb_parts.match_bom(**params),
+            "cost_estimate": lambda params: self.jlcpcb_parts.cost_estimate(**params),
             # Datasheet commands
             "enrich_datasheets": self._handle_enrich_datasheets,
             "get_datasheet_url": self._handle_get_datasheet_url,

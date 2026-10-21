@@ -824,6 +824,244 @@ class JLCPCBPartsManager:
             logger.error(f"Generate corrected CPL failed: {e}")
             return {"success": False, "error": str(e)}
 
+    def parametric_search(self, **kwargs) -> Dict:
+        """Search parts by parsed parametric values (value + unit + package)."""
+        import re
+
+        query = kwargs.get("query", "")
+        value = kwargs.get("value")
+        unit = kwargs.get("unit")
+        package = kwargs.get("package")
+        tolerance = kwargs.get("tolerance")
+        voltage_rating = kwargs.get("voltage_rating")
+        library_type = kwargs.get("library_type", "All")
+        sort_by = kwargs.get("sort_by", "price")
+        limit = kwargs.get("limit", 20)
+
+        if query and not value:
+            value, unit, package = self._parse_parametric_query(query)
+
+        if not value:
+            return {
+                "success": False,
+                "error": "Could not parse parametric value. Use format like '100nF 0402' or '10k 0805'."
+            }
+
+        search_terms = []
+        if value and unit:
+            search_terms.append(f"{value}{unit}")
+            normalized = self._normalize_value(value, unit)
+            if normalized != f"{value}{unit}":
+                search_terms.append(normalized)
+
+        combined_query = " ".join(search_terms) if search_terms else str(value)
+        results = self.search_parts(
+            query=combined_query,
+            package=package,
+            library_type=library_type if library_type != "All" else None,
+            limit=limit * 3,
+        )
+
+        if voltage_rating:
+            vr = str(voltage_rating).upper()
+            results = [p for p in results if vr in (p.get("description", "").upper())]
+
+        if tolerance:
+            tol_str = str(tolerance).replace("%", "")
+            results = [p for p in results if tol_str in (p.get("description", "") or "")]
+
+        if sort_by == "price":
+            results.sort(key=lambda p: self._get_unit_price(p))
+        elif sort_by == "stock":
+            results.sort(key=lambda p: -(p.get("stock", 0) or 0))
+
+        results = results[:limit]
+
+        return {
+            "success": True,
+            "parsed": {"value": value, "unit": unit, "package": package},
+            "count": len(results),
+            "parts": results,
+        }
+
+    def match_bom(self, **kwargs) -> Dict:
+        """Match a BOM (list of components) to JLCPCB parts."""
+        components = kwargs.get("components", [])
+        prefer_basic = kwargs.get("prefer_basic", True)
+        results = []
+
+        for comp in components:
+            ref = comp.get("reference", "")
+            value = comp.get("value", "")
+            footprint = comp.get("footprint", "")
+            lcsc = comp.get("lcsc", "")
+
+            match_result = {"reference": ref, "value": value, "footprint": footprint}
+
+            if lcsc:
+                part = self.get_part_info(lcsc)
+                if part:
+                    match_result["matched_part"] = part
+                    match_result["match_method"] = "lcsc_number"
+                    match_result["matched"] = True
+                    results.append(match_result)
+                    continue
+
+            package = self._extract_package_name(footprint.split(":")[-1]) if footprint else None
+            search_q = value
+            if package:
+                search_q = f"{value} {package}"
+
+            candidates = self.search_parts(query=search_q, limit=10)
+
+            if prefer_basic:
+                basic = [p for p in candidates if p.get("library_type") == "Basic"]
+                if basic:
+                    candidates = basic + [p for p in candidates if p.get("library_type") != "Basic"]
+
+            if candidates:
+                match_result["matched_part"] = candidates[0]
+                match_result["alternatives"] = candidates[1:5]
+                match_result["match_method"] = "search"
+                match_result["matched"] = True
+            else:
+                match_result["matched"] = False
+                match_result["match_method"] = "none"
+
+            results.append(match_result)
+
+        matched_count = sum(1 for r in results if r.get("matched"))
+        basic_count = sum(
+            1 for r in results
+            if r.get("matched") and r.get("matched_part", {}).get("library_type") == "Basic"
+        )
+
+        return {
+            "success": True,
+            "total_components": len(components),
+            "matched": matched_count,
+            "unmatched": len(components) - matched_count,
+            "basic_parts": basic_count,
+            "extended_parts": matched_count - basic_count,
+            "results": results,
+        }
+
+    def cost_estimate(self, **kwargs) -> Dict:
+        """Estimate PCB assembly cost based on matched BOM."""
+        components = kwargs.get("components", [])
+        quantity = kwargs.get("quantity", 5)
+
+        bom_result = self.match_bom(components=components)
+        if not bom_result.get("success"):
+            return bom_result
+
+        total_part_cost = 0.0
+        extended_setup_fee = 0.0
+        part_costs = []
+
+        for r in bom_result["results"]:
+            if not r.get("matched"):
+                continue
+            part = r["matched_part"]
+            unit_price = self._get_unit_price(part, quantity)
+            line_cost = unit_price * quantity
+
+            part_entry = {
+                "reference": r["reference"],
+                "lcsc": part.get("lcsc", ""),
+                "unit_price": round(unit_price, 4),
+                "line_cost": round(line_cost, 4),
+                "library_type": part.get("library_type", ""),
+            }
+
+            if part.get("library_type") == "Extended":
+                extended_setup_fee += 3.0
+                part_entry["setup_fee"] = 3.0
+
+            total_part_cost += line_cost
+            part_costs.append(part_entry)
+
+        return {
+            "success": True,
+            "quantity": quantity,
+            "unique_parts": len(part_costs),
+            "total_part_cost": round(total_part_cost, 2),
+            "extended_setup_fees": round(extended_setup_fee, 2),
+            "estimated_total": round(total_part_cost + extended_setup_fee, 2),
+            "basic_parts": bom_result["basic_parts"],
+            "extended_parts": bom_result["extended_parts"],
+            "unmatched": bom_result["unmatched"],
+            "part_costs": part_costs,
+        }
+
+    def _parse_parametric_query(self, query: str):
+        """Parse a human query like '100nF 0402' into (value, unit, package)."""
+        import re
+
+        query = query.strip()
+        value, unit, package = None, None, None
+
+        pkg_match = re.search(r'\b(0201|0402|0603|0805|1206|1210|1812|2010|2512)\b', query)
+        if pkg_match:
+            package = pkg_match.group(1)
+            query = query[:pkg_match.start()] + query[pkg_match.end():]
+
+        pkg_match2 = re.search(r'\b(SOT-\d+|SOIC-\d+|QFN-\d+|LQFP-\d+|TSSOP-\d+|SMA|SMB|SMC)\b',
+                               query, re.IGNORECASE)
+        if pkg_match2:
+            package = pkg_match2.group(1)
+            query = query[:pkg_match2.start()] + query[pkg_match2.end():]
+
+        val_match = re.search(
+            r'(\d+(?:\.\d+)?)\s*(pF|nF|uF|µF|mF|F|pH|nH|uH|µH|mH|H|'
+            r'mΩ|Ω|ohm|kΩ|kohm|MΩ|Mohm|k|M|R|V|A|mA|mV|W|mW)\b',
+            query, re.IGNORECASE
+        )
+        if val_match:
+            value = val_match.group(1)
+            unit = val_match.group(2)
+            unit = unit.replace("µ", "u").replace("Ω", "ohm")
+            if unit.lower() in ("k", "kohm"):
+                unit = "kohm"
+            elif unit.lower() in ("m", "mohm") and float(value) > 0.1:
+                unit = "Mohm"
+        else:
+            num_match = re.search(r'(\d+(?:\.\d+)?)', query)
+            if num_match:
+                value = num_match.group(1)
+
+        return value, unit, package
+
+    def _normalize_value(self, value: str, unit: str) -> str:
+        """Normalize a value+unit to standard form."""
+        UNIT_MAP = {
+            "kohm": "kOhms", "mohm": "MOhms", "ohm": "Ohms", "r": "Ohms",
+            "pf": "pF", "nf": "nF", "uf": "uF", "mf": "mF", "f": "F",
+            "ph": "pH", "nh": "nH", "uh": "uH", "mh": "mH", "h": "H",
+        }
+        normalized_unit = UNIT_MAP.get(unit.lower(), unit)
+        return f"{value}{normalized_unit}"
+
+    def _get_unit_price(self, part: Dict, quantity: int = 1) -> float:
+        """Extract unit price from a part's price breaks."""
+        try:
+            price_str = part.get("price", "[]")
+            if isinstance(price_str, str):
+                prices = json.loads(price_str)
+            else:
+                prices = price_str or []
+
+            if not prices:
+                return 999.0
+
+            best_price = prices[0].get("price", 999.0)
+            for pb in prices:
+                if pb.get("qty", 0) <= quantity:
+                    best_price = pb.get("price", best_price)
+            return float(best_price)
+        except (json.JSONDecodeError, TypeError, ValueError, KeyError):
+            return 999.0
+
     def _extract_package_name(self, footprint_name: str) -> str:
         """Extract package name from a KiCad footprint name."""
         # e.g., "R_0402_1005Metric" -> "0402"
